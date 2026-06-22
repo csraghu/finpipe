@@ -1,8 +1,13 @@
 import logging
+import os
 from datetime import date, datetime
+from typing import Any
 
+import aioboto3
 import pandas as pd
 import polars as pl
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import BotoCoreError, ClientError
 
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeDataNotFoundError
@@ -13,6 +18,8 @@ from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
 
 logger = logging.getLogger(__name__)
+
+API_BASE = "https://api.massive.com"
 
 
 class MassiveOptionsAdapter(IOptionsProvider):
@@ -26,9 +33,156 @@ class MassiveOptionsAdapter(IOptionsProvider):
             "massive", self._provider_config.rate_limits, cache_config=config.cache
         )
         self._base_url = "https://api.massive.com/v1"
+        self._s3_endpoint = self._provider_config.s3_endpoint or os.environ.get(
+            "MASSIVE_S3_ENDPOINT", "https://files.massive.com"
+        )
+        self._s3_bucket = self._provider_config.s3_bucket or "flatfiles"
+
+    @property
+    def api_key(self) -> str | None:
+        return self._api_key
 
     async def close(self) -> None:
         await self._client.close()
+
+    async def _get_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        if not self._api_key:
+            logger.error("Missing Massive API key — cannot fetch %s", url)
+            return {}
+        merged = dict(params or {})
+        merged["apiKey"] = self._api_key
+        response = await self._client.request("GET", url, params=merged)
+        response.raise_for_status()
+        data = response.json()
+        return data if isinstance(data, dict) else {}
+
+    async def fetch_options_contracts(self, symbol: str) -> list[dict[str, Any]]:
+        ticker = symbol.strip().upper()
+        params = {
+            "underlying_ticker": ticker,
+            "expired": "false",
+            "limit": 1000,
+        }
+        data = await self._get_json(f"{API_BASE}/v3/reference/options/contracts", params)
+        return data.get("results", [])
+
+    async def fetch_options_snapshot(
+        self,
+        symbol: str,
+        expiration_date: str | None = None,
+        contract_type: str | None = None,
+        strike_price_gte: float | None = None,
+        strike_price_lte: float | None = None,
+        limit: int = 250,
+        sort: str | None = None,
+        order: str | None = None,
+    ) -> list[dict[str, Any]]:
+        underlying_ticker = symbol.strip().upper()
+        params: dict[str, Any] = {"limit": limit}
+        if expiration_date:
+            params["expiration_date"] = expiration_date
+        if contract_type:
+            params["contract_type"] = contract_type
+        if strike_price_gte is not None:
+            params["strike_price.gte"] = strike_price_gte
+        if strike_price_lte is not None:
+            params["strike_price.lte"] = strike_price_lte
+        if sort:
+            params["sort"] = sort
+        if order:
+            params["order"] = order
+        data = await self._get_json(
+            f"{API_BASE}/v3/snapshot/options/{underlying_ticker}",
+            params,
+        )
+        return data.get("results", [])
+
+    async def fetch_single_option_snapshot(
+        self, symbol: str, contract: str
+    ) -> dict[str, Any]:
+        underlying_ticker = symbol.strip().upper()
+        contract_symbol = contract.strip().upper()
+        if not contract_symbol.startswith("O:"):
+            contract_symbol = f"O:{contract_symbol}"
+        data = await self._get_json(
+            f"{API_BASE}/v3/snapshot/options/{underlying_ticker}/{contract_symbol}",
+        )
+        results = data.get("results")
+        return results if isinstance(results, dict) else {}
+
+    async def fetch_historical_aggs(
+        self, symbol: str, from_date: str, to_date: str
+    ) -> list[dict[str, Any]]:
+        contract_symbol = symbol.strip().upper()
+        if not contract_symbol.startswith("O:"):
+            contract_symbol = f"O:{contract_symbol}"
+        url = (
+            f"{API_BASE}/v2/aggs/ticker/{contract_symbol}/range/"
+            f"1/day/{from_date}/{to_date}"
+        )
+        data = await self._get_json(url, {"adjusted": "true"})
+        return data.get("results", [])
+
+    def _get_aioboto3_session(self) -> aioboto3.Session | None:
+        access_key = self._provider_config.access_key_id
+        secret_key = self._provider_config.secret_access_key
+        if not access_key or not secret_key:
+            logger.error("Missing S3 credentials — cannot access Massive flatfiles")
+            return None
+        return aioboto3.Session(
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
+
+    async def sync_flatfile_from_s3(
+        self, remote_key: str, local_dest_path: str
+    ) -> bool:
+        session = self._get_aioboto3_session()
+        if not session:
+            return False
+        os.makedirs(os.path.dirname(local_dest_path) or ".", exist_ok=True)
+        try:
+            async with session.client(
+                "s3",
+                endpoint_url=self._s3_endpoint,
+                config=BotoConfig(signature_version="s3v4"),
+            ) as s3:
+                response = await s3.get_object(Bucket=self._s3_bucket, Key=remote_key)
+                body = await response["Body"].read()
+            with open(local_dest_path, "wb") as f:
+                f.write(body)
+            return True
+        except (ClientError, BotoCoreError, OSError, TimeoutError) as exc:
+            err_str = str(exc)
+            if "403" in err_str or "404" in err_str:
+                logger.info(
+                    "S3 flatfile not found (or access denied)",
+                    extra={"remote_key": remote_key},
+                )
+            else:
+                logger.error(
+                    "S3 flatfile download failed",
+                    extra={"remote_key": remote_key, "error": err_str},
+                )
+            return False
+
+    async def list_s3_files(self, prefix: str) -> list[dict[str, Any]]:
+        session = self._get_aioboto3_session()
+        if not session:
+            return []
+        try:
+            async with session.client(
+                "s3",
+                endpoint_url=self._s3_endpoint,
+                config=BotoConfig(signature_version="s3v4"),
+            ) as s3:
+                response = await s3.list_objects_v2(
+                    Bucket=self._s3_bucket, Prefix=prefix
+                )
+                return response.get("Contents", [])
+        except (ClientError, BotoCoreError, OSError, TimeoutError) as exc:
+            logger.exception("Failed to list S3 files", extra={"error": str(exc)})
+            return []
 
     def _format_dataframe(self, df: pd.DataFrame) -> pl.DataFrame | pd.DataFrame:
         if self._config.dataframe_format == "pandas":

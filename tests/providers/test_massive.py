@@ -43,8 +43,8 @@ async def test_massive_options_chain(config):
 
 
 @pytest.mark.asyncio
-async def test_massive_options_snapshot(config):
-    adapter = MassiveOptionsAdapter(config)
+async def test_massive_options_snapshot(config, pandas_config):
+    adapter = MassiveOptionsAdapter(pandas_config)
 
     json_mock = {
         "data": [
@@ -58,16 +58,47 @@ async def test_massive_options_snapshot(config):
             return_value=httpx.Response(200, json=json_mock)
         )
         df = await adapter.get_options_snapshot("AAPL")
-        assert df.height == 2
+        assert len(df) == 2
 
 
 @pytest.mark.asyncio
-async def test_massive_empty_response(config):
-    adapter = MassiveOptionsAdapter(config)
+async def test_massive_empty_response(config, pandas_config):
+    adapter = MassiveOptionsAdapter(pandas_config)
 
     with respx.mock:
         respx.get("https://api.massive.com/v1/options/snapshot").mock(
             return_value=httpx.Response(200, json={"data": []})
         )
         df = await adapter.get_options_snapshot("AAPL")
-        assert df.height == 0
+        assert len(df) == 0
+
+
+@pytest.mark.asyncio
+async def test_massive_v3_fetch_options_contracts(config):
+    adapter = MassiveOptionsAdapter(config)
+
+    with respx.mock:
+        respx.get("https://api.massive.com/v3/reference/options/contracts").mock(
+            return_value=httpx.Response(
+                200,
+                json={"results": [{"ticker": "O:AAPL230115C00150000"}]},
+            )
+        )
+        contracts = await adapter.fetch_options_contracts("AAPL")
+        assert len(contracts) == 1
+        assert contracts[0]["ticker"] == "O:AAPL230115C00150000"
+
+
+@pytest.mark.asyncio
+async def test_massive_v3_fetch_options_snapshot(config):
+    adapter = MassiveOptionsAdapter(config)
+
+    with respx.mock:
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
+            return_value=httpx.Response(
+                200,
+                json={"results": [{"details": {"ticker": "O:AAPL230115C00150000"}}]},
+            )
+        )
+        snapshots = await adapter.fetch_options_snapshot("AAPL", limit=5)
+        assert len(snapshots) == 1

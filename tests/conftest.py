@@ -22,3 +22,9 @@ def mock_env_vars(monkeypatch):
 def config():
     """Return a base FinpipeConfig for tests."""
     return FinpipeConfig()
+
+
+@pytest.fixture
+def pandas_config():
+    """FinpipeConfig that avoids polars conversion in dataframe helpers."""
+    return FinpipeConfig(dataframe_format="pandas")
