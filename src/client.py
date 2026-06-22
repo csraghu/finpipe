@@ -1,0 +1,74 @@
+import logging
+from typing import Any, Self
+
+from finpipe.core.config import FinpipeConfig
+from finpipe.providers.alpha_vantage import AlphaVantageAdapter
+from finpipe.providers.composite import (
+    CompositeEquityService,
+    CompositeIntelService,
+    CompositeLlmService,
+    CompositeMacroService,
+    CompositeOptionsService,
+    CompositeScreenerService,
+)
+from finpipe.providers.fred import FredAdapter
+from finpipe.providers.gemini import GeminiAdapter
+from finpipe.providers.groq import GroqAdapter
+from finpipe.providers.massive import MassiveOptionsAdapter
+from finpipe.providers.sentiment import NewsSentimentAdapter
+from finpipe.providers.tradingview import TradingViewAdapter
+from finpipe.providers.yahoo import YahooFinanceAdapter
+
+logger = logging.getLogger(__name__)
+
+
+class Client:
+    """Top-level facade for finpipe provider access."""
+
+    def __init__(self, config: FinpipeConfig | None = None):
+        self.config = config or FinpipeConfig.load()
+        self._ensure_registrations()
+
+        self.equity = CompositeEquityService(self.config)
+        self.options = CompositeOptionsService(self.config)
+        self.macro = CompositeMacroService(self.config)
+        self.intel = CompositeIntelService(self.config)
+        self.screener = CompositeScreenerService(self.config)
+        self.llm = CompositeLlmService(self.config)
+
+        self.yahoo = YahooFinanceAdapter(self.config)
+        self.alpha_vantage = AlphaVantageAdapter(self.config)
+        self.massive = MassiveOptionsAdapter(self.config)
+        self.fred = FredAdapter(self.config)
+        self.tradingview = TradingViewAdapter(self.config)
+        self.sentiment = NewsSentimentAdapter(self.config)
+        self.groq = GroqAdapter(self.config)
+        self.gemini = GeminiAdapter(self.config)
+
+    @staticmethod
+    def _ensure_registrations() -> None:
+        import finpipe.providers  # noqa: F401 — side-effect registration
+
+    async def close(self) -> None:
+        await self.alpha_vantage.close()
+        await self.massive.close()
+        await self.fred.close()
+        await self.tradingview.close()
+        await self.sentiment.close()
+        await self.groq.close()
+        await self.gemini.close()
+        logger.info("Finpipe client gracefully shut down.")
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        await self.close()
+
+    def dump_settings(self, *, redact_secrets: bool = True) -> dict[str, Any]:
+        """Return resolved settings for all capability and provider interfaces."""
+        return self.config.dump_settings(redact_secrets=redact_secrets)
+
+    def dump_settings_json(self, *, indent: int = 2, redact_secrets: bool = True) -> str:
+        """Serialize resolved settings for all capability and provider interfaces."""
+        return self.config.dump_settings_json(indent=indent, redact_secrets=redact_secrets)

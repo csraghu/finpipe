@@ -1,0 +1,298 @@
+<python_engineering_rules version="2.0">
+
+  <!-- ========================================================= -->
+  <!-- 1. ARCHITECTURE RULES                                     -->
+  <!-- ========================================================= -->
+
+  <section id="architecture" name="Architecture Standards">
+
+    <rule id="SRP" level="required" name="Single Responsibility Principle">
+      <description>
+        Every module, class, and function must have exactly one reason to change.
+      </description>
+
+      <requirements>
+        <item>Classes must own one domain concern.</item>
+        <item>Orchestrators may coordinate but must contain zero business logic.</item>
+        <item>Business logic functions ≤ 30 lines; orchestrators ≤ 50 lines.</item>
+        <item>Modules ≤ 500 lines (domain) or ≤ 1000 lines (orchestrators).</item>
+      </requirements>
+
+      <anti_patterns>
+        <item>God classes that fetch, transform, store, and notify.</item>
+        <item>Utility dumping grounds like utils.py or helpers.py.</item>
+      </anti_patterns>
+    </rule>
+
+    <rule id="DRY" level="required" name="Don't Repeat Yourself">
+      <description>No duplicated logic. Extract shared logic on the third occurrence.</description>
+    </rule>
+
+    <rule id="OPEN_CLOSED" level="required" name="Open/Closed Principle">
+      <description>Systems must be open for extension and closed for modification.</description>
+      <required_patterns>
+        <item>Use Protocols or ABCs for extensibility.</item>
+      </required_patterns>
+    </rule>
+
+    <rule id="COMPOSITION" level="required" name="Composition Over Inheritance">
+      <description>Prefer dependency injection over inheritance.</description>
+      <requirements>
+        <item>Max inheritance depth: 2 levels.</item>
+      </requirements>
+    </rule>
+
+    <rule id="INTERFACE_SEGREGATION" level="required" name="Interface Segregation">
+      <description>Consumers depend only on what they use.</description>
+    </rule>
+
+    <rule id="DB_ABSTRACTION" level="critical" name="Storage Layer Abstraction">
+      <description>No raw SQL outside the storage layer.</description>
+
+      <prohibited>
+        <item>cursor.execute("SELECT * FROM table") outside storage.</item>
+      </prohibited>
+
+      <required_patterns>
+        <item>Use storage.get_records() instead of raw SQL.</item>
+      </required_patterns>
+    </rule>
+
+    <rule id="API_VERSIONING" level="required" name="API Versioning">
+      <description>All public APIs must be versioned (/v1/, /v2/).</description>
+    </rule>
+
+    <rule id="IDEMPOTENCY" level="required" name="Idempotent Operations">
+      <description>All write operations must accept an idempotency key.</description>
+    </rule>
+
+    <rule id="CIRCUIT_BREAKERS" level="required" name="Circuit Breakers & Retries">
+      <description>All external calls must implement timeout, retry with jitter, and circuit breaker.</description>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 2. CODING STANDARDS                                       -->
+  <!-- ========================================================= -->
+
+  <section id="coding_standards" name="Coding Standards">
+
+    <rule id="NAMING" level="required" name="Naming Conventions">
+      <requirements>
+        <item>Variables: descriptive nouns.</item>
+        <item>Functions: verb + noun.</item>
+        <item>Booleans: is_, has_, should_.</item>
+        <item>Constants: ALL_CAPS.</item>
+        <item>Classes: PascalCase.</item>
+        <item>Private: _prefix.</item>
+      </requirements>
+    </rule>
+
+    <rule id="TYPES" level="required" name="Type Annotations">
+      <description>All functions must include full type annotations.</description>
+    </rule>
+
+    <rule id="PURE_FUNCTIONS" level="required" name="Pure Functions">
+      <description>Pure logic must not perform I/O, DB access, logging, or mutate inputs.</description>
+    </rule>
+
+    <rule id="NO_MAGIC_NUMBERS" level="required" name="No Magic Numbers">
+      <description>All business constants must be named or stored in config.</description>
+    </rule>
+
+    <rule id="ERROR_HANDLING" level="required" name="Error Handling">
+      <prohibited>
+        <item>except Exception: pass</item>
+        <item>except:</item>
+        <item>print(e)</item>
+      </prohibited>
+      <required_patterns>
+        <item>Catch specific exceptions.</item>
+        <item>Log with context.</item>
+        <item>Re-raise when caller cannot continue.</item>
+      </required_patterns>
+    </rule>
+
+    <rule id="DOCS" level="required" name="Documentation">
+      <description>All public classes/functions require docstrings.</description>
+    </rule>
+
+    <rule id="CYCLOMATIC_COMPLEXITY" level="required" name="Cyclomatic Complexity">
+      <description>Max complexity per function: 10.</description>
+    </rule>
+
+    <rule id="IMMUTABLE_MODELS" level="required" name="Immutable Models">
+      <description>Use @dataclass(frozen=True) for value objects.</description>
+    </rule>
+
+    <rule id="NO_CONSTRUCTOR_SIDE_EFFECTS" level="required" name="Constructor Purity">
+      <description>Constructors must not perform I/O, DB access, or heavy computation.</description>
+    </rule>
+
+    <rule id="IMPORTS" level="required" name="Import Organization">
+      <requirements>
+        <item>Standard → Third-party → Internal.</item>
+        <item>No wildcard imports.</item>
+        <item>Lazy imports allowed only for heavy modules with comment.</item>
+      </requirements>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 3. PERFORMANCE & STATE                                    -->
+  <!-- ========================================================= -->
+
+  <section id="performance" name="Performance & State">
+
+    <rule id="DI" level="required" name="Dependency Injection">
+      <description>All services must receive dependencies via constructor injection.</description>
+    </rule>
+
+    <rule id="NO_GLOBAL_STATE" level="critical" name="No Global Mutable State">
+      <allowed>
+        <item>Constants</item>
+        <item>Frozen dataclasses</item>
+        <item>Enums</item>
+      </allowed>
+    </rule>
+
+    <rule id="THREAD_SAFETY" level="critical" name="Thread Safety">
+      <description>No shared DB connections across threads.</description>
+    </rule>
+
+    <rule id="CACHING" level="required" name="Caching Standards">
+      <description>Cache only pure functions; never cache mutable objects.</description>
+    </rule>
+
+    <rule id="DATA_STRUCTURES" level="required" name="Data Structure Selection">
+      <requirements>
+        <item>Membership → set</item>
+        <item>Key/value → dict</item>
+        <item>FIFO → deque</item>
+        <item>Sorted → heapq</item>
+      </requirements>
+    </rule>
+
+    <rule id="VECTORIZATION" level="required" name="Vectorization">
+      <description>Prefer NumPy/Pandas vectorized operations.</description>
+    </rule>
+
+    <rule id="GENERATORS" level="required" name="Generators">
+      <description>Use generators for large pipelines.</description>
+    </rule>
+
+    <rule id="CONTEXT_MANAGERS" level="critical" name="Resource Management">
+      <description>All resources requiring cleanup must use with or try/finally.</description>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 4. ASYNC RULES                                            -->
+  <!-- ========================================================= -->
+
+  <section id="async" name="Async Standards">
+
+    <rule id="ASYNC_SAFETY" level="required" name="Async Safety">
+      <description>No blocking I/O inside async functions.</description>
+    </rule>
+
+    <rule id="ASYNC_RESOURCES" level="required" name="Async Resource Management">
+      <description>Use async with for async clients; cancel outstanding tasks on shutdown.</description>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 5. LOGGING                                                -->
+  <!-- ========================================================= -->
+
+  <section id="logging" name="Logging Standards">
+
+    <rule id="STRUCTURED_LOGGING" level="required" name="Structured Logging">
+      <description>Use logger with extra={} fields; never use print().</description>
+    </rule>
+
+    <rule id="LOG_LEVELS" level="required" name="Log Levels">
+      <requirements>
+        <item>INFO → normal operations</item>
+        <item>WARNING → recoverable issues</item>
+        <item>ERROR → failures requiring attention</item>
+        <item>CRITICAL → system-wide failure</item>
+      </requirements>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 6. EXCEPTIONS                                             -->
+  <!-- ========================================================= -->
+
+  <section id="exceptions" name="Exception Taxonomy">
+
+    <rule id="EXCEPTIONS" level="required" name="Domain Exceptions">
+      <description>Use domain-specific exceptions; never raise raw Exception.</description>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 7. SECURITY                                               -->
+  <!-- ========================================================= -->
+
+  <section id="security" name="Security Standards">
+
+    <rule id="SECURITY" level="required" name="Security">
+      <requirements>
+        <item>Never log secrets.</item>
+        <item>Never store credentials in code.</item>
+        <item>Validate all user input at API boundaries.</item>
+      </requirements>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 8. TESTING                                                -->
+  <!-- ========================================================= -->
+
+  <section id="testing" name="Testing Standards">
+
+    <rule id="TESTING" level="required" name="Testing Standards">
+      <requirements>
+        <item>Unit tests must mock external services.</item>
+        <item>Async tests must use pytest.mark.asyncio.</item>
+        <item>No sleeps — use asyncio.Event.</item>
+      </requirements>
+    </rule>
+
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 9. CONFIGURATION                                          -->
+  <!-- ========================================================= -->
+
+  <section id="config" name="Configuration Standards">
+
+    <rule id="CONFIG_IMMUTABILITY" level="required" name="Config Immutability">
+      <description>Config objects must be immutable after startup.</description>
+    </rule>
+
+  </section>
+
+  <section id="precedence" name="Rule Precedence">
+
+    <rule id="PRECEDENCE" level="required" name="Rule Precedence">
+      <requirements>
+        <item>Architecture rules override coding rules.</item>
+        <item>Safety rules override performance rules.</item>
+        <item>Readability overrides micro-optimizations.</item>
+        <item>If two rules conflict, the stricter rule wins.</item>
+      </requirements>
+    </rule>
+
+  </section>
+
+</python_engineering_rules>

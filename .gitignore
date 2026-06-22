@@ -1,0 +1,17 @@
+node_modules/
+__pycache__/
+logs/
+dist/
+venv/
+.venv/
+*.db*
+.antigravityrules
+.agent*.md
+.bashrc
+.coverage
+coverage.json
+.env
+*.pyc
+.zed/settings.json
+env.sh
+requirements.txt

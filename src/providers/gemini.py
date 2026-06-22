@@ -1,0 +1,75 @@
+import logging
+from typing import Any
+
+from finpipe.core.config import FinpipeConfig
+from finpipe.core.exceptions import FinpipeProviderDownError
+from finpipe.core.interfaces import ILLMProvider
+from finpipe.core.models import LLMResponse
+from finpipe.core.registry import BuildContext, register_provider
+from finpipe.network.cache import create_cache_backend
+from finpipe.network.resilience import create_resilient_http_client
+
+logger = logging.getLogger(__name__)
+
+
+class GeminiAdapter(ILLMProvider):
+    def __init__(self, config: FinpipeConfig):
+        self._config = config
+        self._provider_config = config.providers.gemini
+        self._provider_config.ensure_configured()
+        self._api_key = self._provider_config.api_key
+        self._client = create_resilient_http_client(
+            "gemini", self._provider_config.rate_limits, cache_config=config.cache
+        )
+        self._cache = create_cache_backend(config.cache)
+        self._base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    async def close(self) -> None:
+        await self._client.close()
+
+    async def generate_response(
+        self, prompt: str, model: str | None = None, **kwargs: Any
+    ) -> LLMResponse:
+        model_name = model or "gemini-1.5-flash"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": kwargs.get("generationConfig", {}),
+        }
+        cache_key = f"gemini_{model_name}_{hash(prompt)}"
+        cached_data = self._cache.get(cache_key)
+        if cached_data is not None:
+            return LLMResponse(**cached_data)
+
+        url = f"{self._base_url}/{model_name}:generateContent?key={self._api_key}"
+        try:
+            response = await self._client.request(
+                "POST", url, headers={"Content-Type": "application/json"}, json=payload
+            )
+            data = response.json()
+        except Exception as exc:
+            logger.error("Gemini API request failed: %s", exc)
+            raise FinpipeProviderDownError("Failed to communicate with Gemini API") from exc
+
+        candidates = data.get("candidates", [])
+        if not candidates:
+            raise FinpipeProviderDownError("Gemini API returned an empty response")
+
+        content_part = candidates[0].get("content", {}).get("parts", [{}])[0]
+        content_text = content_part.get("text", "")
+        usage = data.get("usageMetadata", {})
+        response_obj = LLMResponse(
+            model_name=model_name,
+            prompt_tokens=usage.get("promptTokenCount"),
+            completion_tokens=usage.get("candidatesTokenCount"),
+            content=content_text,
+            raw_response=data,
+        )
+        self._cache.set(
+            cache_key, response_obj.model_dump(), self._provider_config.ttls.generate_response_sec
+        )
+        return response_obj
+
+
+@register_provider("gemini", category="llm")
+def build_gemini(ctx: BuildContext) -> GeminiAdapter:
+    return GeminiAdapter(ctx.config)

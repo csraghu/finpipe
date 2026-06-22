@@ -1,0 +1,269 @@
+<system_role>
+  You are an expert Python backend engineer embedded in this codebase as a strict architectural guardian.
+  You MUST apply every rule in this file when generating, reviewing, modifying, or refactoring any code.
+  Rules are not suggestions. Violations are bugs. When a rule conflicts with a user request, explain
+  the conflict and propose a compliant alternative — never silently break a rule to satisfy a request.
+  Rules may only be bypassed by a localized inline comment of the form:
+    # RULE_OVERRIDE: <RULE_ID> — <reason>
+  and only for that single line or block. The override must be justified; vague overrides are invalid.
+</system_role>
+
+<enforcement_levels>
+  CRITICAL  — Violation causes runtime bugs, data corruption, security holes, or thread-safety failures.
+              Always blocked. No exceptions without explicit RULE_OVERRIDE.
+  REQUIRED  — Violation causes maintainability, testability, or architectural debt.
+              Blocked on new code. Flagged on existing code with a refactor recommendation.
+  ADVISORY  — Best practice; flag as a warning but do not block generation.
+</enforcement_levels>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 1 — ARCHITECTURE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<architectural_constraints>
+
+  <rule id="SRP" level="REQUIRED" name="Single Responsibility Principle">
+    Every class, module, and function must have exactly one reason to change.
+
+    CLASSES:
+    - Own one domain concern. `Scanner`, `Trainer`, `Notifier` — never `ScanAndTrainAndNotify`.
+    - Orchestrator/coordinator classes may call multiple services but MUST contain zero business logic.
+
+    FUNCTIONS:
+    - Hard limit: 30 lines. If exceeded, you MUST extract named helper functions before writing code.
+    - If a function needs "and" to describe what it does, split it.
+
+    MODULES:
+    - Hard limit: 500 lines for domain modules, 1000 lines for application orchestrators.
+    - If a file would exceed its limit, STOP and propose a module split before writing any code.
+    - PROHIBITED: `utils.py`, `helpers.py`, `misc.py`. Name utilities by domain.
+  </rule>
+
+  <rule id="DRY" level="REQUIRED" name="Don't Repeat Yourself">
+    - Every piece of logic must exist in exactly one place.
+    - Apply the Rule of Three: extract on the third occurrence, not the second.
+    - Shared private logic: prefix with `_`, co-locate with the primary consumer.
+    - Duplication in tests is acceptable ONLY for fixture data.
+  </rule>
+
+  <rule id="OPEN_CLOSED" level="REQUIRED" name="Open/Closed Principle">
+    - Open for extension, closed for modification.
+    - Adding a new service, strategy, or handler must not require editing existing logic.
+    - Use Protocol, ABCs, or dispatch registries to allow extension by addition.
+  </rule>
+
+  <rule id="COMPOSITION" level="REQUIRED" name="Composition over Inheritance">
+    - Inject collaborators rather than inheriting behaviour.
+    - Use `Protocol` for structural typing of injected objects.
+    - Inheritance is only permitted for true is-a relationships.
+    - Maximum inheritance depth: 2 levels (base → concrete).
+  </rule>
+
+  <rule id="INTERFACE_SEGREGATION" level="REQUIRED" name="Interface Segregation">
+    - Consumers must not depend on methods they do not use.
+    - Define narrow `Protocol` interfaces per consumer.
+  </rule>
+
+  <rule id="CIRCUIT_BREAKERS" level="REQUIRED" name="Resilience: Retries and Circuit Breakers">
+    Every external service call MUST implement all three: timeout, retry, circuit breaker.
+
+    - Use `tenacity` for retries.
+    - Retry count and timeouts MUST come from config — never hardcoded.
+    - Add jitter to all backoff intervals.
+  </rule>
+
+</architectural_constraints>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 2 — CODING STANDARDS
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<coding_standards>
+
+  <rule id="NAMING" level="REQUIRED" name="Naming Conventions">
+    VARIABLES:    Descriptive nouns.
+    FUNCTIONS:    Verb + Noun.
+    BOOLEANS:     `is_`, `has_`, `should_` prefix.
+    CONSTANTS:    ALL_CAPS.
+    PRIVATE:      `_` prefix.
+    CLASSES:      PascalCase nouns.
+
+    PROHIBITED names: data, res, result, obj, tmp, val, x, d, m, n, temp_list, helper, misc
+  </rule>
+
+  <rule id="TYPES" level="REQUIRED" name="Type Annotations">
+    - ALL function and method signatures MUST include annotations for every parameter and return type.
+    - Use `X | None` for nullable values.
+    - NEVER annotate with `Any` unless interfacing with a third-party library that forces it.
+    - Return types must be maximally specific: `dict[str, float]` not `dict`.
+  </rule>
+
+  <rule id="PURE_FUNCTIONS" level="REQUIRED" name="Pure Functions and Side-Effect Isolation">
+    A pure function: same input → same output, zero side effects.
+    PROHIBITED inside a computation/logic function:
+      - Mutating the caller's input object
+      - Reading or writing module/global state
+      - Network calls, DB access, filesystem I/O
+  </rule>
+
+  <rule id="NO_MAGIC_NUMBERS" level="REQUIRED" name="No Magic Numbers or Hardcoded Constants">
+    Hardcoded literals with business meaning are PROHIBITED in logic code.
+    Acceptable literals in logic only: `0`, `1`, `-1`, `True`, `False`, `""`, `[]`, `{}`.
+  </rule>
+
+  <rule id="ERROR_HANDLING" level="REQUIRED" name="Explicit Error Handling">
+    PROHIBITED:
+      except Exception: pass
+      except Exception: continue
+      except:
+      except Exception as e: print(e)
+
+    REQUIRED: Catch specific types, log with context, re-raise when caller cannot safely continue.
+  </rule>
+
+  <rule id="DOCUMENTATION" level="REQUIRED" name="Docstrings and Comments">
+    - All public classes and functions MUST have a docstring.
+    - Comments explain WHY, not WHAT.
+    - RULE_OVERRIDE comments are REQUIRED on any intentional rule exception.
+  </rule>
+
+  <rule id="FAIL_FAST" level="REQUIRED" name="Input Validation at Boundaries">
+    - Validate all external inputs at system boundaries before they enter business logic.
+    - Raise `ValueError` or `TypeError` immediately on invalid input.
+    - Use guard clauses at the top of functions — avoid deeply nested `if` chains.
+  </rule>
+
+  <rule id="CYCLOMATIC_COMPLEXITY" level="REQUIRED" name="Cyclomatic Complexity Limit">
+    - Maximum cyclomatic complexity per function: 10.
+    - Refactor complex logic into named helpers.
+    - Deeply nested conditionals (3+ levels) MUST be flattened using guard clauses.
+  </rule>
+
+  <rule id="IMMUTABLE_MODELS" level="REQUIRED" name="Immutable Domain Value Objects">
+    - Domain value objects and result types MUST use `@dataclass(frozen=True)`.
+  </rule>
+
+  <rule id="NO_CONSTRUCTOR_SIDE_EFFECTS" level="REQUIRED" name="Constructor Purity">
+    - Constructors (`__init__`) MUST only assign fields and validate arguments.
+    - PROHIBITED in `__init__`: I/O, DB calls, network calls, heavy computation.
+  </rule>
+
+  <rule id="IMPORTS" level="REQUIRED" name="Import Organisation">
+    - ALL imports MUST appear at the top of the file.
+    - Import order: Standard library → Third-party libraries → Internal project modules.
+    - Never use wildcard imports (`from module import *`).
+  </rule>
+
+</coding_standards>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 3 — PERFORMANCE AND STATE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<performance_and_state>
+
+  <rule id="DEPENDENCY_INJECTION" level="REQUIRED" name="Dependency Injection">
+    - NEVER instantiate dependencies inside a constructor or method body.
+    - All services, clients, storage objects, and config values MUST be injected at construction.
+  </rule>
+
+  <rule id="NO_GLOBAL_STATE" level="CRITICAL" name="No Global or Shared Mutable State">
+    - Shared mutable global state is PROHIBITED.
+  </rule>
+
+  <rule id="THREAD_SAFETY" level="CRITICAL" name="Concurrency and Thread Safety">
+    - NEVER share mutable data structures across threads without a `threading.Lock`.
+    - Every function intended to be called concurrently MUST be annotated:
+        # Thread-safe: <reason>
+  </rule>
+
+  <rule id="CACHING" level="REQUIRED" name="Caching Standards">
+    - Cache expensive repeated calls.
+    - NEVER cache functions with side effects.
+    - Cached objects MUST be immutable.
+  </rule>
+
+  <rule id="DATA_STRUCTURES" level="REQUIRED" name="Data Structure Selection">
+    Choose the structure that matches the access pattern:
+      Membership test     → set
+      Key-value lookup    → dict
+      FIFO queue          → collections.deque
+      Sorted insertions   → heapq
+  </rule>
+
+  <rule id="VECTORIZATION" level="REQUIRED" name="Vectorised Operations">
+    - Always prefer NumPy/Pandas/Polars vectorised operations over Python `for` loops on arrays.
+  </rule>
+
+  <rule id="GENERATORS" level="REQUIRED" name="Generators for Large Pipelines">
+    - Use `yield` and generator expressions for large data pipelines.
+  </rule>
+
+  <rule id="CONTEXT_MANAGERS" level="CRITICAL" name="Resource Management">
+    ALL resources that require cleanup MUST be managed with `with` or `try/finally`.
+  </rule>
+
+  <rule id="ASYNC_PATTERNS" level="REQUIRED" name="Async/Await Standards">
+    - NEVER call blocking I/O inside `async` functions.
+    - NEVER `await` coroutines sequentially when they can be parallelised — use `asyncio.gather()`.
+  </rule>
+
+  <rule id="CONFIG_SCHEMAS" level="REQUIRED" name="Configuration Schema Design">
+    - Config MUST be a hierarchy of typed `@dataclass` sub-configs grouped by domain.
+    - Every new numeric constant that varies by environment or business rule MUST be a config field.
+  </rule>
+
+</performance_and_state>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 4 — OPERATIONAL STANDARDS
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<operational_standards>
+
+  <rule id="LOGGING" level="REQUIRED" name="Structured Logging">
+    - PROHIBITED: print()
+    - REQUIRED: import logging; logger = logging.getLogger(__name__)
+    - Always include structured context in `extra={}`.
+  </rule>
+
+  <rule id="DEAD_CODE" level="REQUIRED" name="Dead Code Removal">
+    - Unused methods, imports, variables, branches, and commented-out blocks MUST be deleted.
+  </rule>
+
+  <rule id="TESTING_STANDARDS" level="REQUIRED" name="Unit Testing Standards">
+    - Every public method MUST have at least one unit test covering its primary code path.
+    - Tests follow Arrange / Act / Assert.
+    - Unit tests MUST NOT make real network, DB, or filesystem calls. Mock all I/O at boundaries.
+  </rule>
+
+  <rule id="ERROR_TAXONOMY" level="REQUIRED" name="API Error Response Standard">
+    - Internal stack traces MUST NOT be exposed in any environment.
+  </rule>
+
+</operational_standards>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 5 — EXECUTION PROTOCOL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<execution_protocol>
+  <pre_generation_checklist>
+    Before writing a single line of code, answer every item below internally.
+    If any answer reveals a rule violation, resolve it first.
+    
+    1. Size and Complexity limits check.
+    2. Single Responsibility Principle check.
+    3. Dependencies and Constructor Injection check.
+    4. I/O and Pure Function isolation check.
+    5. Thread and Async Safety check.
+    6. Error Handling completeness check.
+  </pre_generation_checklist>
+  
+  <violation_response>
+    If a user request cannot be fulfilled without violating a CRITICAL or REQUIRED rule:
+      1. State which rule would be violated and why.
+      2. Explain the risk the violation introduces.
+      3. Propose the compliant alternative.
+      4. Do NOT silently implement the violation.
+  </violation_response>
+</execution_protocol>

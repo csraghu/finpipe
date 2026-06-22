@@ -1,0 +1,68 @@
+# Run `pre-commit install` once after syncing dev dependencies.
+# Every commit runs: ruff, basedpyright, pyrefly, architecture-doc sync, pytest+coverage.
+
+default_language_version:
+  python: python3.12
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.18
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright
+        entry: basedpyright
+        language: python
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        additional_dependencies:
+          - basedpyright>=1.12.0
+
+      - id: pyrefly
+        name: pyrefly
+        entry: pyrefly check
+        language: python
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        additional_dependencies:
+          - pyrefly>=0.25.0
+
+      - id: architecture-docs
+        name: architecture docs sync
+        entry: python scripts/check_architecture_docs.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
+      - id: pytest-coverage
+        name: pytest (95% coverage gate)
+        entry: pytest
+        language: python
+        pass_filenames: false
+        always_run: true
+        additional_dependencies:
+          - pytest>=9.1.1
+          - pytest-asyncio>=1.4.0
+          - pytest-cov>=7.1.0
+          - pytest-mock>=3.15.1
+          - polars>=0.20.0
+          - pydantic>=2.5.0
+          - pandas>=2.0.0
+          - tenacity>=8.2.0
+          - pybreaker>=1.2.0
+          - cachetools>=5.3.0
+          - curl_cffi>=0.15.0
+          - yfinance>=0.2.0
+          - fredapi>=0.5.0
+          - pyarrow>=14.0.0
+        args:
+          - --cov=finpipe
+          - --cov-report=term-missing
+          - --cov-fail-under=95

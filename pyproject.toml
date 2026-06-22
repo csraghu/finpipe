@@ -1,0 +1,121 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finpipe"
+dynamic = ["version"]
+description = "A unified, resilient financial data pipeline."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "polars>=0.20.0",
+    "pydantic>=2.5.0",
+    "pandas>=2.0.0",
+    "tenacity>=8.2.0",
+    "pybreaker>=1.2.0",
+    "cachetools>=5.3.0",
+    "curl_cffi>=0.15.0",
+    "pyarrow>=14.0.0",
+]
+
+[project.optional-dependencies]
+yahoo = ["yfinance>=0.2.0"]
+fred = ["fredapi>=0.5.0"]
+massive = ["aioboto3>=13.0.0"]
+sentiment = ["feedparser>=6.0.0"]
+httpx = ["httpx[http2]>=0.27.0"]
+all = ["finpipe[yahoo,fred,massive,sentiment]"]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.15.0",
+    "basedpyright>=1.12.0",
+    "pyrefly>=0.25.0",
+    "pre-commit>=4.0.0",
+]
+
+[tool.setuptools.package-dir]
+finpipe = "src"
+
+[tool.setuptools]
+packages = [
+    "finpipe",
+    "finpipe.core",
+    "finpipe.network",
+    "finpipe.providers",
+    "finpipe.providers.composite",
+    "finpipe._internal",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "finpipe._version.__version__" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "C901", "UP", "N"]
+ignore = []
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.basedpyright]
+include = ["src", "tests", "scripts"]
+exclude = [".venv", "**/__pycache__"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+reportMissingTypeStubs = false
+
+[tool.pyrefly]
+project-includes = [
+    "src/**/*.py",
+    "tests/**/*.py",
+    "scripts/**/*.py",
+]
+project-excludes = [
+    ".venv/**",
+    "**/__pycache__/**",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = [
+    "--cov=finpipe",
+    "--cov-report=term-missing",
+    "--cov-fail-under=95",
+]
+
+[tool.coverage.run]
+source = ["finpipe"]
+branch = true
+omit = ["tests/*"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "if __name__ == .__main__.:",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.15.0",
+    "basedpyright>=1.12.0",
+    "pyrefly>=0.25.0",
+    "pre-commit>=4.0.0",
+]

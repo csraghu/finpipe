@@ -1,0 +1,190 @@
+{
+  "$schema": "./finpipe.settings.schema.json",
+  "dataframe_format": "polars",
+
+  "cache": {
+    "cache_type": "sqlite",
+    "sqlite_path": ".cache/finpipe/finpipe.db",
+    "maxsize": 2048,
+    "namespace": "default",
+    "singleton": true
+  },
+
+  "routing": {
+    "equity_primary": "yahoo",
+    "equity_fallback": "alpha_vantage",
+    "options_primary": "massive",
+    "options_fallback": "yahoo",
+    "llm_primary": "groq",
+    "llm_fallback": "gemini"
+  },
+
+  "providers": {
+    "yahoo": {
+      "enabled": true,
+      "rate_limits": {
+        "max_requests_per_second": 2.0,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "historical_prices_sec": 43200,
+        "live_spot_price_sec": 0,
+        "metadata_sec": 86400,
+        "financial_statements_sec": 86400,
+        "options_chain_sec": 300,
+        "options_snapshot_sec": 300
+      },
+      "http": {
+        "transport": "curl_cffi",
+        "timeout_connect_sec": 10.0,
+        "timeout_read_sec": 30.0,
+        "impersonate": "chrome124",
+        "user_agent": "finpipe/1.0"
+      }
+    },
+
+    "alpha_vantage": {
+      "enabled": true,
+      "rate_limits": {
+        "max_requests_per_second": 0.083,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "historical_prices_sec": 3600,
+        "live_spot_price_sec": 0,
+        "metadata_sec": 86400
+      }
+    },
+
+    "fred": {
+      "enabled": true,
+      "rate_limits": {
+        "max_requests_per_second": 2.0,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "macro_series_sec": 86400
+      }
+    },
+
+    "massive": {
+      "enabled": true,
+      "rate_limits": {
+        "max_requests_per_second": 5.0,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "options_chain_sec": 300,
+        "options_snapshot_sec": 300
+      }
+    },
+
+    "tradingview": {
+      "enabled": true,
+      "rate_limits": {
+        "max_requests_per_second": 1.0,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "screener_sec": 300
+      }
+    },
+
+    "sentiment": {
+      "enabled": true,
+      "ttls": {
+        "news_sec": 300,
+        "sentiment_score_sec": 300
+      },
+      "sources": {
+        "google_news": {
+          "enabled": true,
+          "ttls": { "fetch_sec": 600 },
+          "rate_limits": {
+            "max_requests_per_second": 1.0,
+            "max_retries": 3,
+            "circuit_breaker_failure_threshold": 5,
+            "circuit_breaker_recovery_timeout_sec": 60.0,
+            "backoff_multiplier": 1.5
+          },
+          "http": {
+            "transport": "curl_cffi",
+            "timeout_connect_sec": 10.0,
+            "timeout_read_sec": 15.0,
+            "user_agent": "finpipe/1.0"
+          }
+        },
+        "stocktwits": {
+          "enabled": true,
+          "ttls": { "fetch_sec": 120 },
+          "rate_limits": {
+            "max_requests_per_second": 2.0,
+            "max_retries": 3,
+            "circuit_breaker_failure_threshold": 5,
+            "circuit_breaker_recovery_timeout_sec": 60.0,
+            "backoff_multiplier": 1.5
+          }
+        },
+        "reddit": {
+          "enabled": true,
+          "ttls": { "fetch_sec": 1800 },
+          "rate_limits": {
+            "max_requests_per_second": 0.5,
+            "max_retries": 5,
+            "circuit_breaker_failure_threshold": 3,
+            "circuit_breaker_recovery_timeout_sec": 120.0,
+            "backoff_multiplier": 2.0
+          },
+          "http": {
+            "user_agent": "finpipe-scraper/1.0"
+          }
+        }
+      }
+    },
+
+    "groq": {
+      "enabled": true,
+      "rate_limits": {
+        "max_requests_per_second": 10.0,
+        "max_requests_per_minute": 30,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "generate_response_sec": 3600
+      }
+    },
+
+    "gemini": {
+      "enabled": true,
+      "rate_limits": {
+        "max_requests_per_second": 10.0,
+        "max_requests_per_minute": 60,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "generate_response_sec": 3600
+      }
+    }
+  }
+}
