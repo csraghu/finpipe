@@ -30,7 +30,10 @@ class TradingViewAdapter(IScreenerProvider):
             "markets": criteria.get("markets", ["america"]),
             "symbols": {"query": {"types": []}, "tickers": []},
             "columns": ["name"],
-            "sort": {"sortBy": "volume", "sortOrder": "desc"},
+            "sort": criteria.get(
+                "sort",
+                {"sortBy": "volume", "sortOrder": "desc"},
+            ),
             "range": [0, criteria.get("limit", 150)],
         }
         try:
