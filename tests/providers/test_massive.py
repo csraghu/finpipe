@@ -3,7 +3,6 @@ from datetime import date
 import httpx
 import pytest
 import respx
-
 from finpipe.providers.massive import MassiveOptionsAdapter
 
 
