@@ -1,6 +1,6 @@
 # finpipe API reference & application guide
 
-This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.3.0.
+This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.3.1.
 
 For internal design (rate limiting, transport choices, migration from aksh), see [architecture.md](./architecture.md).
 
@@ -219,6 +219,10 @@ Each provider block supports:
 | Key | Description |
 |-----|-------------|
 | `enabled` | Toggle (default `true`); adapters may still initialize today |
+| `model` | LLM only (`groq`, `gemini`) — default chat model when `generate_response` is called without `model=` |
+| `temperature` | LLM only — default sampling temperature |
+| `max_tokens` | LLM only — default completion token cap |
+| `use_dynamic_model` | Groq only — when `true`, resolve newest Llama 70B via models API instead of `model` |
 | `rate_limits` | Hard caps and HTTP resilience (see below) |
 | `ttls` | Cache freshness per data type (seconds; `0` = no cache write) |
 | `http` | Transport/timeouts (`transport`, `impersonate`, `user_agent`, …) |
@@ -531,6 +535,8 @@ Sources configured under `providers.sentiment.sources` (`google_news`, `stocktwi
 |--------|---------|
 | `generate_response(prompt, model=None, **kwargs)` | `GROQ_API_KEY` / `GEMINI_API_KEY` |
 
+Default model when `model` is omitted: `providers.groq.model` (`llama3-8b-8192`) or `providers.gemini.model` (`gemini-1.5-flash`). Per-call `model=` overrides the settings default.
+
 ---
 
 ## Return types & schemas
@@ -674,4 +680,4 @@ See [architecture.md](./architecture.md#development-workflow-and-quality-gates) 
 
 ## Version
 
-This document matches finpipe **v0.3.0** with abstract capability routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; named adapters (`client.yahoo`, …) are for tests and advanced debugging only.
+This document matches finpipe **v0.3.1** with configurable LLM `model` / `temperature` / `max_tokens` in `finpipe.settings.json`, plus abstract capability routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; named adapters (`client.yahoo`, …) are for tests and advanced debugging only.

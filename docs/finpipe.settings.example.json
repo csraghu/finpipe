@@ -159,9 +159,14 @@
 
     "groq": {
       "enabled": true,
+      "model": "llama3-8b-8192",
+      "temperature": 0.3,
+      "max_tokens": 512,
+      "use_dynamic_model": false,
       "rate_limits": {
         "max_requests_per_second": 10.0,
         "max_requests_per_minute": 30,
+        "max_tokens_per_minute": 30000,
         "max_retries": 3,
         "circuit_breaker_failure_threshold": 5,
         "circuit_breaker_recovery_timeout_sec": 60.0,
@@ -174,9 +179,13 @@
 
     "gemini": {
       "enabled": true,
+      "model": "gemini-1.5-flash",
+      "temperature": 0.3,
+      "max_tokens": 512,
       "rate_limits": {
         "max_requests_per_second": 10.0,
-        "max_requests_per_minute": 60,
+        "max_requests_per_minute": 15,
+        "max_tokens_per_minute": 250000,
         "max_retries": 3,
         "circuit_breaker_failure_threshold": 5,
         "circuit_breaker_recovery_timeout_sec": 60.0,

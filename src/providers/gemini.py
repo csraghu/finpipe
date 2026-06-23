@@ -30,10 +30,15 @@ class GeminiAdapter(ILLMProvider):
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any
     ) -> LLMResponse:
-        model_name = model or "gemini-1.5-flash"
+        model_name = model or self._provider_config.model
+        generation_config = dict(kwargs.get("generationConfig") or {})
+        if "temperature" not in generation_config:
+            generation_config["temperature"] = self._provider_config.temperature
+        if "maxOutputTokens" not in generation_config:
+            generation_config["maxOutputTokens"] = self._provider_config.max_tokens
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": kwargs.get("generationConfig", {}),
+            "generationConfig": generation_config,
         }
         cache_key = f"gemini_{model_name}_{hash(prompt)}"
         cached_data = self._cache.get(cache_key)

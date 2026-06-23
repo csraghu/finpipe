@@ -30,9 +30,15 @@ class GroqAdapter(ILLMProvider):
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any
     ) -> LLMResponse:
-        model_name = model or "llama3-8b-8192"
+        model_name = model or self._provider_config.model
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
-        payload = {"model": model_name, "messages": [{"role": "user", "content": prompt}], **kwargs}
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": kwargs.pop("temperature", self._provider_config.temperature),
+            "max_tokens": kwargs.pop("max_tokens", self._provider_config.max_tokens),
+            **kwargs,
+        }
 
         cache_key = f"groq_{model_name}_{hash(prompt)}"
         cached_data = self._cache.get(cache_key)

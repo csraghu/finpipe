@@ -112,3 +112,21 @@ def test_provider_ttls_merge_from_dict():
     assert config.providers.yahoo.ttls.historical_prices_sec == 7200
     assert config.providers.yahoo.ttls.metadata_sec == 86400
     assert config.providers.fred.ttls.macro_series_sec == 3600
+
+
+def test_llm_provider_default_models(config):
+    assert config.providers.groq.model == "llama3-8b-8192"
+    assert config.providers.gemini.model == "gemini-1.5-flash"
+
+
+def test_llm_provider_model_merge_from_dict():
+    config = FinpipeConfig.from_dict(
+        {
+            "providers": {
+                "groq": {"model": "llama-3.3-70b-versatile"},
+                "gemini": {"model": "gemini-2.0-flash"},
+            }
+        }
+    )
+    assert config.providers.groq.model == "llama-3.3-70b-versatile"
+    assert config.providers.gemini.model == "gemini-2.0-flash"

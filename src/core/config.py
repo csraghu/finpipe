@@ -17,6 +17,10 @@ _REQUIRED_KEYS: dict[str, tuple[str, str]] = {
 }
 
 
+DEFAULT_GROQ_MODEL = "llama3-8b-8192"
+DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
+
+
 class RateLimitConfig(BaseModel):
     """User-tunable hard limits and HTTP resilience. AIMD tuning is internal."""
 
@@ -197,9 +201,23 @@ class GroqConfig(AbstractProviderConfig):
         default_factory=lambda: RateLimitConfig(
             max_requests_per_second=10.0,
             max_requests_per_minute=30,
+            max_tokens_per_minute=30_000,
         )
     )
     ttls: LlmTTLConfig = Field(default_factory=LlmTTLConfig)
+    model: str = Field(
+        default=DEFAULT_GROQ_MODEL,
+        description="Default Groq chat model when generate_response is called without model=",
+    )
+    temperature: float = Field(default=0.3, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=512, ge=1)
+    use_dynamic_model: bool = Field(
+        default=False,
+        description=(
+            "When true, resolve the newest Groq Llama 70B model via the models API "
+            "instead of using the configured model name"
+        ),
+    )
     api_key: str | None = Field(default_factory=lambda: os.getenv("GROQ_API_KEY"))
 
     def ensure_configured(self) -> None:
@@ -211,10 +229,17 @@ class GeminiConfig(AbstractProviderConfig):
     rate_limits: RateLimitConfig = Field(
         default_factory=lambda: RateLimitConfig(
             max_requests_per_second=10.0,
-            max_requests_per_minute=60,
+            max_requests_per_minute=15,
+            max_tokens_per_minute=250_000,
         )
     )
     ttls: LlmTTLConfig = Field(default_factory=LlmTTLConfig)
+    model: str = Field(
+        default=DEFAULT_GEMINI_MODEL,
+        description="Default Gemini model when generate_response is called without model=",
+    )
+    temperature: float = Field(default=0.3, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=512, ge=1)
     api_key: str | None = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
 
     def ensure_configured(self) -> None:

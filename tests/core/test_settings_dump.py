@@ -23,6 +23,8 @@ def test_dump_settings_redacts_secrets(config):
     assert "macro_series_sec" in settings["providers"]["fred"]["ttls"]
     assert "news_sec" in settings["providers"]["sentiment"]["ttls"]
     assert "generate_response_sec" in settings["providers"]["groq"]["ttls"]
+    assert settings["providers"]["groq"]["model"] == "llama3-8b-8192"
+    assert settings["providers"]["gemini"]["model"] == "gemini-1.5-flash"
     assert "historical_prices_sec" not in settings["providers"]["fred"]["ttls"]
 
 
