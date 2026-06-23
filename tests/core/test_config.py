@@ -130,3 +130,35 @@ def test_llm_provider_model_merge_from_dict():
     )
     assert config.providers.groq.model == "llama-3.3-70b-versatile"
     assert config.providers.gemini.model == "gemini-2.0-flash"
+
+
+def test_screener_per_source_rate_limits(config):
+    sources = config.providers.screener.sources
+    assert sources.yahoo_trending.rate_limits.max_requests_per_second == 2.0
+    assert sources.yahoo_predefined.rate_limits.max_requests_per_second == 2.0
+    assert sources.yahoo_predefined.default_limit == 50
+    assert sources.finviz.rate_limits.max_requests_per_second == 2.0
+    assert sources.tradingview.rate_limits.max_requests_per_second == 1.0
+
+
+def test_screener_source_ttl_inherits_run_sec(config):
+    screener = config.providers.screener
+    assert screener.resolve_source_fetch_ttl("yahoo_trending") == screener.ttls.run_sec
+    assert screener.resolve_source_fetch_ttl("finviz") == screener.ttls.run_sec
+
+
+def test_screener_source_ttl_override():
+    config = FinpipeConfig.from_dict(
+        {
+            "providers": {
+                "screener": {
+                    "ttls": {"run_sec": 300},
+                    "sources": {
+                        "finviz": {"ttls": {"fetch_sec": 600}},
+                    },
+                }
+            }
+        }
+    )
+    assert config.providers.screener.resolve_source_fetch_ttl("finviz") == 600
+    assert config.providers.screener.resolve_source_fetch_ttl("yahoo_trending") == 300

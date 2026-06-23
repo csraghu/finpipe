@@ -459,7 +459,21 @@ Defined in `finpipe.core.interfaces`. All I/O methods are `async def`.
 
 | Method | Returns |
 |--------|---------|
-| `run_screener(criteria: dict)` | `list[str]` (tickers) |
+| `run_screener(criteria: dict)` | `list[str]` (tickers) — legacy TradingView adapter |
+
+### `client.screener` — unified screener capability
+
+| Method | Returns |
+|--------|---------|
+| `run(source, **params)` | `list[str]` — dispatch by source name |
+| `get_trending()` | `list[str]` — Yahoo US trending equities |
+| `get_predefined(scr_id, *, limit=None)` | `list[str]` — Yahoo predefined lists |
+| `get_fundamental(filter_key)` | `list[str]` — Finviz screener filter |
+| `run_tradingview(criteria)` | `list[str]` — TradingView scanner POST |
+
+Source names for `run()`: `yahoo_trending`, `yahoo_predefined`, `finviz`, `tradingview`.
+
+Configure per-source limits under `providers.screener.sources` in `finpipe.settings.json` (mirrors `providers.sentiment.sources`). Legacy `providers.tradingview` merges into `screener.sources.tradingview`.
 
 ### `ILLMProvider`
 

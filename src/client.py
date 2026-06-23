@@ -16,6 +16,7 @@ from finpipe.providers.gemini import GeminiAdapter
 from finpipe.providers.groq import GroqAdapter
 from finpipe.providers.massive import MassiveOptionsAdapter
 from finpipe.providers.sentiment import NewsSentimentAdapter
+from finpipe.providers.screener import ScreenerAdapter
 from finpipe.providers.tradingview import TradingViewAdapter
 from finpipe.providers.yahoo import YahooFinanceAdapter
 
@@ -33,7 +34,8 @@ class Client:
         self.alpha_vantage = AlphaVantageAdapter(self.config)
         self.massive = MassiveOptionsAdapter(self.config)
         self.fred = FredAdapter(self.config)
-        self.tradingview = TradingViewAdapter(self.config)
+        self._screener_adapter = ScreenerAdapter(self.config)
+        self.tradingview = TradingViewAdapter(self.config, screener=self._screener_adapter)
         self.sentiment = NewsSentimentAdapter(self.config)
         self.groq = GroqAdapter(self.config)
         self.gemini = GeminiAdapter(self.config)
@@ -54,7 +56,7 @@ class Client:
         )
         self.macro = CompositeMacroService(self.config)
         self.intel = CompositeIntelService(self.config, sentiment=self.sentiment)
-        self.screener = CompositeScreenerService(self.config)
+        self.screener = CompositeScreenerService(self.config, screener=self._screener_adapter)
         self.llm = CompositeLlmService(self.config)
 
     @staticmethod
@@ -65,7 +67,7 @@ class Client:
         await self.alpha_vantage.close()
         await self.massive.close()
         await self.fred.close()
-        await self.tradingview.close()
+        await self._screener_adapter.close()
         await self.sentiment.close()
         await self.groq.close()
         await self.gemini.close()

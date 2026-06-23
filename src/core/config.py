@@ -111,6 +111,64 @@ class HttpConfig(BaseModel):
     user_agent: str | None = None
 
 
+class ScreenerSourceTTLConfig(BaseModel):
+    """Per-source fetch TTL. ``None`` inherits ``ScreenerConfig.ttls.run_sec``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    fetch_sec: int | None = Field(default=None, ge=0)
+
+
+class ScreenerSourceConfig(BaseModel):
+    """Rate limits and toggles for one screener source."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = True
+    rate_limits: RateLimitConfig = Field(default_factory=RateLimitConfig)
+    http: HttpConfig = Field(default_factory=HttpConfig)
+    ttls: ScreenerSourceTTLConfig = Field(default_factory=ScreenerSourceTTLConfig)
+    default_limit: int | None = Field(default=None, ge=1)
+
+
+class ScreenerSourcesConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    yahoo_trending: ScreenerSourceConfig = Field(
+        default_factory=lambda: ScreenerSourceConfig(
+            rate_limits=RateLimitConfig(max_requests_per_second=2.0),
+            http=HttpConfig(transport="curl_cffi"),
+        )
+    )
+    yahoo_predefined: ScreenerSourceConfig = Field(
+        default_factory=lambda: ScreenerSourceConfig(
+            rate_limits=RateLimitConfig(max_requests_per_second=2.0),
+            http=HttpConfig(transport="curl_cffi"),
+            default_limit=50,
+        )
+    )
+    finviz: ScreenerSourceConfig = Field(
+        default_factory=lambda: ScreenerSourceConfig(
+            rate_limits=RateLimitConfig(max_requests_per_second=2.0),
+            http=HttpConfig(transport="curl_cffi"),
+        )
+    )
+    tradingview: ScreenerSourceConfig = Field(
+        default_factory=lambda: ScreenerSourceConfig(
+            rate_limits=RateLimitConfig(max_requests_per_second=1.0),
+            http=HttpConfig(transport="curl_cffi"),
+        )
+    )
+
+
+class ScreenerTTLConfig(BaseModel):
+    """TTLs for screener capability methods."""
+
+    model_config = ConfigDict(frozen=True)
+
+    run_sec: int = Field(default=300, ge=0)
+
+
 class SentimentSourceTTLConfig(BaseModel):
     """Per-source fetch TTL. ``None`` inherits the method-level default on ``SentimentConfig``."""
 
@@ -292,6 +350,49 @@ class SentimentConfig(AbstractProviderConfig):
         return self.ttls.sentiment_score_sec
 
 
+class ScreenerConfig(AbstractProviderConfig):
+    """Unified screener adapter; per-source limits live under ``sources``."""
+
+    ttls: ScreenerTTLConfig = Field(default_factory=ScreenerTTLConfig)
+    sources: ScreenerSourcesConfig = Field(default_factory=ScreenerSourcesConfig)
+
+    def resolve_source_fetch_ttl(
+        self,
+        source_name: str,
+        *,
+        legacy_tradingview: TradingViewTTLConfig | None = None,
+    ) -> int:
+        """Return per-source TTL, or inherit from ``run_sec`` / legacy TradingView."""
+        source = getattr(self.sources, source_name)
+        if source.ttls.fetch_sec is not None:
+            return source.ttls.fetch_sec
+        if source_name == "tradingview" and legacy_tradingview is not None:
+            return legacy_tradingview.screener_sec
+        return self.ttls.run_sec
+
+
+def resolve_screener_tradingview_source(
+    screener: ScreenerConfig,
+    legacy: TradingViewConfig,
+) -> ScreenerSourceConfig:
+    """Merge legacy ``providers.tradingview`` into ``screener.sources.tradingview``."""
+    source = screener.sources.tradingview
+    rate_limits = RateLimitConfig(
+        **{**legacy.rate_limits.model_dump(), **source.rate_limits.model_dump()}
+    )
+    http = HttpConfig(**{**legacy.http.model_dump(), **source.http.model_dump()})
+    fetch_sec = source.ttls.fetch_sec
+    if fetch_sec is None:
+        fetch_sec = legacy.ttls.screener_sec
+    return ScreenerSourceConfig(
+        enabled=source.enabled,
+        rate_limits=rate_limits,
+        http=http,
+        ttls=ScreenerSourceTTLConfig(fetch_sec=fetch_sec),
+        default_limit=source.default_limit,
+    )
+
+
 class TradingViewConfig(AbstractProviderConfig):
     rate_limits: RateLimitConfig = Field(
         default_factory=lambda: RateLimitConfig(max_requests_per_second=1.0)
@@ -307,6 +408,7 @@ class ProviderGroupConfig(BaseModel):
     alpha_vantage: AlphaVantageConfig = Field(default_factory=AlphaVantageConfig)
     yahoo: YahooConfig = Field(default_factory=YahooConfig)
     sentiment: SentimentConfig = Field(default_factory=SentimentConfig)
+    screener: ScreenerConfig = Field(default_factory=ScreenerConfig)
     massive: MassiveConfig = Field(default_factory=MassiveConfig)
     groq: GroqConfig = Field(default_factory=GroqConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)

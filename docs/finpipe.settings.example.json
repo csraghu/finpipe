@@ -105,6 +105,81 @@
       }
     },
 
+    "screener": {
+      "enabled": true,
+      "ttls": { "run_sec": 300 },
+      "sources": {
+        "yahoo_trending": {
+          "enabled": true,
+          "ttls": { "fetch_sec": 300 },
+          "rate_limits": {
+            "max_requests_per_second": 2.0,
+            "max_retries": 3,
+            "circuit_breaker_failure_threshold": 5,
+            "circuit_breaker_recovery_timeout_sec": 60.0,
+            "backoff_multiplier": 1.5
+          },
+          "http": {
+            "transport": "curl_cffi",
+            "timeout_connect_sec": 10.0,
+            "timeout_read_sec": 30.0,
+            "user_agent": "finpipe/1.0"
+          }
+        },
+        "yahoo_predefined": {
+          "enabled": true,
+          "default_limit": 50,
+          "ttls": { "fetch_sec": 300 },
+          "rate_limits": {
+            "max_requests_per_second": 2.0,
+            "max_retries": 3,
+            "circuit_breaker_failure_threshold": 5,
+            "circuit_breaker_recovery_timeout_sec": 60.0,
+            "backoff_multiplier": 1.5
+          },
+          "http": {
+            "transport": "curl_cffi",
+            "timeout_connect_sec": 10.0,
+            "timeout_read_sec": 30.0,
+            "user_agent": "finpipe/1.0"
+          }
+        },
+        "finviz": {
+          "enabled": true,
+          "ttls": { "fetch_sec": 300 },
+          "rate_limits": {
+            "max_requests_per_second": 2.0,
+            "max_retries": 3,
+            "circuit_breaker_failure_threshold": 5,
+            "circuit_breaker_recovery_timeout_sec": 60.0,
+            "backoff_multiplier": 1.5
+          },
+          "http": {
+            "transport": "curl_cffi",
+            "timeout_connect_sec": 10.0,
+            "timeout_read_sec": 30.0,
+            "user_agent": "finpipe/1.0"
+          }
+        },
+        "tradingview": {
+          "enabled": true,
+          "ttls": { "fetch_sec": 300 },
+          "rate_limits": {
+            "max_requests_per_second": 1.0,
+            "max_retries": 3,
+            "circuit_breaker_failure_threshold": 5,
+            "circuit_breaker_recovery_timeout_sec": 60.0,
+            "backoff_multiplier": 1.5
+          },
+          "http": {
+            "transport": "curl_cffi",
+            "timeout_connect_sec": 10.0,
+            "timeout_read_sec": 30.0
+          }
+        }
+      }
+    },
+
     "sentiment": {
       "enabled": true,
       "ttls": {

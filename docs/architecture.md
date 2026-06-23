@@ -299,7 +299,7 @@ class Client:
     options: IOptionsProvider                                # CompositeOptionsService
     macro: IMacroProvider                                    # CompositeMacroService (FRED + fallbacks)
     intel: IMarketIntelProvider                              # CompositeIntelService
-    screener: IScreenerProvider                              # CompositeScreenerService
+    screener: CompositeScreenerService                              # Yahoo, Finviz, TradingView via ScreenerAdapter
     llm: ILLMProvider                                        # CompositeLlmService (Groq/Gemini routing)
 
     # --- Provider API (advanced / tests only — not for applications) ---

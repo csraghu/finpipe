@@ -1,3 +1,3 @@
 """Package version — single source of truth for pyproject.toml and runtime."""
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"

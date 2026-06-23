@@ -15,6 +15,7 @@ PROVIDER_NAMES: tuple[str, ...] = (
     "fred",
     "massive",
     "tradingview",
+    "screener",
     "sentiment",
     "groq",
     "gemini",
@@ -65,7 +66,7 @@ CAPABILITY_SETTINGS: tuple[CapabilitySettings, ...] = (
         "screener",
         None,
         None,
-        ("tradingview",),
+        ("screener", "tradingview"),
         ("IScreenerProvider",),
     ),
     CapabilitySettings(

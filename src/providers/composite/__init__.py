@@ -288,8 +288,26 @@ class CompositeIntelService:
 
 
 class CompositeScreenerService:
-    def __init__(self, config: FinpipeConfig) -> None:
+    """Abstract screener facade (Yahoo, Finviz, TradingView)."""
+
+    def __init__(self, config: FinpipeConfig, *, screener: Any) -> None:
         self._config = config
+        self._screener = screener
+
+    async def run(self, source: str, **params: Any) -> list[str]:
+        return await self._screener.run(source, **params)
+
+    async def get_trending(self) -> list[str]:
+        return await self._screener.get_trending()
+
+    async def get_predefined(self, scr_id: str, *, limit: int | None = None) -> list[str]:
+        return await self._screener.get_predefined(scr_id, limit=limit)
+
+    async def get_fundamental(self, filter_key: str) -> list[str]:
+        return await self._screener.get_fundamental(filter_key)
+
+    async def run_tradingview(self, criteria: dict[str, Any]) -> list[str]:
+        return await self._screener.run_tradingview(criteria)
 
 
 class CompositeLlmService:

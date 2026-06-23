@@ -32,6 +32,13 @@ DEFAULT_PROVIDER_HARD_LIMITS: dict[str, ProviderHardLimit] = {
     "google_news": ProviderHardLimit("google_news", max_requests_per_second=1.0),
     "reddit": ProviderHardLimit("reddit", max_requests_per_second=0.5),
     "screener.tradingview": ProviderHardLimit("screener.tradingview", max_requests_per_second=2.0),
+    "screener.yahoo_trending": ProviderHardLimit(
+        "screener.yahoo_trending", max_requests_per_second=2.0
+    ),
+    "screener.yahoo_predefined": ProviderHardLimit(
+        "screener.yahoo_predefined", max_requests_per_second=2.0
+    ),
+    "screener.finviz": ProviderHardLimit("screener.finviz", max_requests_per_second=2.0),
 }
 
 
