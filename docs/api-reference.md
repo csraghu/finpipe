@@ -1,6 +1,6 @@
 # finpipe API reference & application guide
 
-This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.1.0.
+This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.2.0.
 
 For internal design (rate limiting, transport choices, migration from aksh), see [architecture.md](./architecture.md).
 
@@ -284,7 +284,7 @@ Secrets are read from the **process environment** at config/adapter initializati
 
 **No API key required:** Yahoo, TradingView, sentiment sources (Google News, StockTwits, Reddit).
 
-> **Current limitation (v0.1.0):** `Client()` eagerly constructs **all** provider adapters. Even if you only call `client.yahoo`, you must still set env vars for FRED, Alpha Vantage, Massive, Groq, and Gemini unless you change finpipe to lazy-init adapters. Plan your `.env` accordingly.
+> **Current limitation (v0.2.0):** `Client()` eagerly constructs **all** provider adapters. Even if you only call `client.yahoo`, you must still set env vars for FRED, Alpha Vantage, Massive, Groq, and Gemini unless you change finpipe to lazy-init adapters. Plan your `.env` accordingly.
 
 ### finpipe configuration overrides
 
@@ -670,4 +670,4 @@ See [architecture.md](./architecture.md#development-workflow-and-quality-gates) 
 
 ## Version
 
-This document matches finpipe **v0.1.0** with composite routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; use named adapters only when you need a specific backend.
+This document matches finpipe **v0.2.0** with composite routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; use named adapters only when you need a specific backend.
