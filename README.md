@@ -3,6 +3,7 @@
 `finpipe` is a robust, strictly-typed, resilient financial data pipeline designed to seamlessly fetch data from multiple providers (Yahoo Finance, FRED, Alpha Vantage, Massive Options, etc.) while shielding downstream applications from rate limits, network timeouts, and bad data formatting.
 
 ## Architecture Highlights
+* **Composite capability APIs:** `client.equity`, `client.options`, and `client.intel` route across configured primary/fallback providers.
 * **Native Polars Support:** All time-series data is returned as high-performance `polars.DataFrame`.
 * **Strict Pydantic Models:** All structured data (Metadata, Options, Sentiment) is returned as strict Pydantic models.
 * **Steady-State Rate Limiting:** Asynchronous Token Bucket rate limiting ensures API calls are metered smoothly without crashing or violating quotas.
@@ -53,3 +54,15 @@ asyncio.run(main())
 ```
 
 Set `FRED_API_KEY` (and other provider keys) in the environment before running — see the API reference.
+
+## Development
+
+Install dev dependencies and run the full quality gate before committing:
+
+```powershell
+pip install -e ".[dev,httpx,yahoo,fred,massive,sentiment]"
+pre-commit install
+.\scripts\run_checks.ps1
+```
+
+See **[docs/api-reference.md](docs/api-reference.md#development--quality-gates)** and **[docs/architecture.md](docs/architecture.md#development-workflow-and-quality-gates)** for type-check setup (`typecheck/finpipe` junction), hooks, and coverage policy.

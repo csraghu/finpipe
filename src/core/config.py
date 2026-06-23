@@ -5,9 +5,8 @@ import os
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 from finpipe.core.exceptions import FinpipeConfigError
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 _REQUIRED_KEYS: dict[str, tuple[str, str]] = {
     "fred_api_key": ("FRED_API_KEY", "fred"),
@@ -100,7 +99,8 @@ class LlmTTLConfig(BaseModel):
 class HttpConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    transport: Literal["curl_cffi", "httpx"] = "httpx"  # per-provider; scraping sources override to curl_cffi
+    # Per-provider; scraping sources override to curl_cffi.
+    transport: Literal["curl_cffi", "httpx"] = "httpx"
     timeout_connect_sec: float = 10.0
     timeout_read_sec: float = 30.0
     impersonate: str | None = "chrome124"

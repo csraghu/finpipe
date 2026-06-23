@@ -43,7 +43,9 @@ class TradingViewAdapter(IScreenerProvider):
             data = response.json()
         except Exception as exc:
             logger.error("TradingView screener failed: %s", exc)
-            raise FinpipeProviderDownError("Failed to fetch data from TradingView screener") from exc
+            raise FinpipeProviderDownError(
+                "Failed to fetch data from TradingView screener"
+            ) from exc
 
         matches: list[str] = []
         for item in data.get("data", []):

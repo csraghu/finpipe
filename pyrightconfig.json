@@ -1,0 +1,8 @@
+{
+  "include": ["typecheck/finpipe", "tests", "scripts"],
+  "exclude": [".venv", "**/__pycache__", "build", "finpipe.egg-info", "src", "finpipe", ".typecheck"],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard",
+  "reportMissingTypeStubs": false,
+  "extraPaths": ["typecheck"]
+}

@@ -11,9 +11,14 @@ venv/
 .coverage
 coverage.json
 .env
+env_exp.sh
 .vscode
 .cursor
 *.pyc
+# Type-checker import alias (junction typecheck/finpipe → src/); see scripts/ensure_typecheck_import_root.py
+/build/
+/finpipe
+/typecheck/finpipe
 .zed/settings.json
 env.sh
 requirements.txt

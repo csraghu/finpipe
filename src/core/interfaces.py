@@ -3,7 +3,6 @@ from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
 import polars as pl
-
 from finpipe.core.models import (
     LLMResponse,
     NewsArticle,

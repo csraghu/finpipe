@@ -4,9 +4,9 @@ import logging
 from typing import Any, Literal, cast
 
 from curl_cffi import requests as cffi_requests
-
 from finpipe.core.config import HttpConfig, RateLimitConfig
 from finpipe.network.limiter import AdaptiveRateLimiter, build_adaptive_limiter
+from finpipe.network.resilience import rate_limit_db_path
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,9 @@ class CurlCffiHttpClient:
         self.namespace = namespace
         self._config = config
         self.rate_limiter: AdaptiveRateLimiter = build_adaptive_limiter(
-            namespace, rate_limits, db_path=db_path
+            namespace,
+            rate_limits,
+            db_path=db_path or rate_limit_db_path(None),
         )
         self._session: cffi_requests.AsyncSession | None = cffi_requests.AsyncSession(
             timeout=config.timeout_read_sec,

@@ -1,5 +1,4 @@
 import pytest
-
 from finpipe._internal.aimd import (
     AIMD_ADDITIVE_INCREASE_RPS,
     AIMD_BURST_CAPACITY,
@@ -25,10 +24,14 @@ def test_build_adaptive_limiter_uses_hard_cap_only(tmp_path):
 
 
 def test_rate_limit_config_rejects_aimd_fields():
-    with pytest.raises(Exception):
-        RateLimitConfig(
-            max_requests_per_second=5.0,
-            min_requests_per_second=0.2,
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        RateLimitConfig.model_validate(
+            {
+                "max_requests_per_second": 5.0,
+                "min_requests_per_second": 0.2,
+            }
         )
 
 

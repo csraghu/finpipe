@@ -1,5 +1,4 @@
 import pytest
-
 from finpipe.client import Client
 
 

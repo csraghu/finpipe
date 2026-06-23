@@ -1,5 +1,4 @@
 import pytest
-
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeConfigError
 

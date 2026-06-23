@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, TypeVar
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -57,7 +58,9 @@ _CATEGORY_REGISTRIES: dict[str, ProviderRegistry[Any]] = {
 }
 
 
-def register_provider(name: str, *, category: str) -> Callable[[ProviderFactory[Any]], ProviderFactory[Any]]:
+def register_provider(
+    name: str, *, category: str
+) -> Callable[[ProviderFactory[Any]], ProviderFactory[Any]]:
     registry = _CATEGORY_REGISTRIES[category]
 
     def decorator(factory: ProviderFactory[Any]) -> ProviderFactory[Any]:

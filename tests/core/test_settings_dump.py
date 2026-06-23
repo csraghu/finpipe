@@ -1,7 +1,6 @@
 import json
 
 from finpipe.client import Client
-from finpipe.core.config import FinpipeConfig
 from finpipe.core.settings_dump import PROVIDER_NAMES
 
 

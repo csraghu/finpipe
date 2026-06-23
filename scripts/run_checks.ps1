@@ -2,6 +2,8 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
+& (Join-Path $PSScriptRoot "ensure_typecheck_import_root.ps1")
+
 Write-Host ">> ruff check --fix"
 ruff check --fix .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -2,7 +2,6 @@ from finpipe.core.config import FinpipeConfig
 from finpipe.core.interfaces import ICloseable
 from finpipe.network.cache import ICacheBackend, create_cache_backend
 from finpipe.network.cache_manager import CacheManager
-from finpipe.network.resilience import ResilientHttpClient
 
 
 class ProviderBase(ICloseable):

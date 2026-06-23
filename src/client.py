@@ -29,13 +29,6 @@ class Client:
         self.config = config or FinpipeConfig.load()
         self._ensure_registrations()
 
-        self.equity = CompositeEquityService(self.config)
-        self.options = CompositeOptionsService(self.config)
-        self.macro = CompositeMacroService(self.config)
-        self.intel = CompositeIntelService(self.config)
-        self.screener = CompositeScreenerService(self.config)
-        self.llm = CompositeLlmService(self.config)
-
         self.yahoo = YahooFinanceAdapter(self.config)
         self.alpha_vantage = AlphaVantageAdapter(self.config)
         self.massive = MassiveOptionsAdapter(self.config)
@@ -44,6 +37,25 @@ class Client:
         self.sentiment = NewsSentimentAdapter(self.config)
         self.groq = GroqAdapter(self.config)
         self.gemini = GeminiAdapter(self.config)
+
+        equity_adapters = {
+            "yahoo": self.yahoo,
+            "alpha_vantage": self.alpha_vantage,
+        }
+        options_adapters = {
+            "massive": self.massive,
+            "yahoo": self.yahoo,
+        }
+        self.options = CompositeOptionsService(self.config, adapters=options_adapters)
+        self.equity = CompositeEquityService(
+            self.config,
+            adapters=equity_adapters,
+            options=self.options,
+        )
+        self.macro = CompositeMacroService(self.config)
+        self.intel = CompositeIntelService(self.config, sentiment=self.sentiment)
+        self.screener = CompositeScreenerService(self.config)
+        self.llm = CompositeLlmService(self.config)
 
     @staticmethod
     def _ensure_registrations() -> None:

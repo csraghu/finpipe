@@ -35,6 +35,7 @@ dev = [
     "basedpyright>=1.12.0",
     "pyrefly>=0.25.0",
     "pre-commit>=4.0.0",
+    "aioboto3>=13.0.0",
 ]
 
 [tool.setuptools.package-dir]
@@ -60,21 +61,24 @@ src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "C901", "UP", "N"]
-ignore = []
+ignore = ["UP046", "UP047"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
 [tool.basedpyright]
-include = ["src", "tests", "scripts"]
-exclude = [".venv", "**/__pycache__"]
+include = ["typecheck/finpipe", "tests", "scripts"]
+exclude = [".venv", "**/__pycache__", "src", "finpipe", ".typecheck"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 reportMissingTypeStubs = false
+extraPaths = ["typecheck"]
 
 [tool.pyrefly]
+disable-search-path-heuristics = true
+search-path = ["typecheck"]
 project-includes = [
-    "src/**/*.py",
+    "typecheck/finpipe/**/*.py",
     "tests/**/*.py",
     "scripts/**/*.py",
 ]
@@ -82,10 +86,13 @@ project-excludes = [
     ".venv/**",
     "**/__pycache__/**",
 ]
+use-ignore-files = false
+ignore-missing-imports = ["aioboto3", "botocore", "botocore.config", "botocore.exceptions"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["typecheck"]
 addopts = [
     "--cov=finpipe",
     "--cov-report=term-missing",
@@ -118,4 +125,5 @@ dev = [
     "basedpyright>=1.12.0",
     "pyrefly>=0.25.0",
     "pre-commit>=4.0.0",
+    "aioboto3>=13.0.0",
 ]

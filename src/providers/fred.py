@@ -3,13 +3,12 @@ from datetime import date
 
 import pandas as pd
 import polars as pl
-
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeDataNotFoundError
 from finpipe.core.interfaces import IMacroProvider
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
-from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
+from finpipe.network.resilience import create_resilient_http_client
 
 logger = logging.getLogger(__name__)
 

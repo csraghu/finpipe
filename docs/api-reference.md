@@ -19,6 +19,7 @@ For internal design (rate limiting, transport choices, migration from aksh), see
 9. [Return types & schemas](#return-types--schemas)
 10. [Exceptions](#exceptions)
 11. [Inspecting resolved settings](#inspecting-resolved-settings)
+12. [Development & quality gates](#development--quality-gates)
 
 ---
 
@@ -112,7 +113,7 @@ asyncio.run(main())
 |-------|----------|-----------|
 | `yahoo` | `yfinance` | Yahoo equity, metadata, options |
 | `fred` | `fredapi` | Optional; FRED REST via httpx is the default implementation |
-| `massive` | `aioboto3` | Massive S3 flatfiles (when implemented) |
+| `massive` | `aioboto3` | Massive REST + S3 flatfiles |
 | `sentiment` | `feedparser` | Optional RSS parsing enhancement |
 | `all` | All of the above | Full provider stack |
 
@@ -182,7 +183,7 @@ Partial JSON is valid: omitted keys keep library defaults (deep-merge over defau
 |-----|------|---------|-------------|
 | `dataframe_format` | `"polars"` \| `"pandas"` | `"polars"` | Format for time-series DataFrames |
 | `cache` | object | see below | Cache backend and TTL storage |
-| `routing` | object | see below | Primary/fallback provider routing (for future composites) |
+| `routing` | object | see below | Primary/fallback provider routing for composite facades |
 | `providers` | object | per-provider defaults | Rate limits, TTLs, HTTP transport per provider |
 
 ### `cache`
@@ -200,7 +201,7 @@ When `cache_type` is `"sqlite"`, learned AIMD rates are stored in the same datab
 
 ### `routing`
 
-Used by composite facades when fully implemented. Safe to configure now:
+Controls which named provider adapters `client.equity`, `client.options`, and `client.intel` call first, and which to try on failure. Intel routes through the sentiment adapter (`providers.sentiment` sources).
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -336,10 +337,36 @@ finally:
 
 | Tier | Access | Stability | Status |
 |------|--------|-----------|--------|
-| **Application API** | `client.equity`, `.options`, `.macro`, `.intel`, `.screener`, `.llm` | Semver-stable (target) | **Stubs** — no fetch methods yet; use provider adapters below |
-| **Provider API** | `client.yahoo`, `.fred`, `.massive`, … | For tests / migration; not semver-guaranteed | **Implemented** |
+| **Application API** | `client.equity`, `.options`, `.intel`, `.macro`, `.screener`, `.llm` | Semver-stable (target) | **Implemented** for equity, options, intel — routes via `routing.*_primary` / `*_fallback` |
+| **Provider API** | `client.yahoo`, `.fred`, `.massive`, … | For tests / advanced use | **Implemented** — direct adapter access |
 
-**Target:** applications call `client.equity.get_historical_prices(...)` with routing from `routing.equity_primary`. **Today:** call `client.yahoo` / `client.fred` directly until composites are wired.
+**Applications should call capability facades** (`client.equity.get_metadata`, `client.options.fetch_options_snapshot`, `client.intel.get_google_news`, …). Routing is controlled in `finpipe.settings.json`:
+
+```json
+{
+  "routing": {
+    "equity_primary": "yahoo",
+    "equity_fallback": "alpha_vantage",
+    "options_primary": "massive",
+    "options_fallback": "yahoo"
+  }
+}
+```
+
+On failure, composites try the fallback provider before raising `FinpipeProviderDownError`.
+
+### Composite examples
+
+```python
+async with Client(config) as client:
+    meta = await client.equity.get_metadata("AAPL")
+    chain = await client.equity.get_options_chain("AAPL")
+    snaps = await client.options.fetch_options_snapshot("SPY", limit=50)
+    headlines = await client.intel.get_google_news("NVDA", limit=10)
+    posts = await client.intel.get_reddit_posts("TSLA")
+```
+
+Named adapters remain on `Client` for backward compatibility and tests.
 
 ### Concurrent fetches
 
@@ -588,16 +615,59 @@ Use this to verify effective rate limits, TTLs, routing, and transport per provi
 
 ---
 
+## Development & quality gates
+
+Contributors and local development use the same checks as pre-commit.
+
+### One-time setup
+
+```powershell
+# Windows
+pip install -e ".[dev,httpx,yahoo,fred,massive,sentiment]"
+pre-commit install
+```
+
+```bash
+# Linux / macOS
+pip install -e ".[dev,httpx,yahoo,fred,massive,sentiment]"
+pre-commit install
+```
+
+The `dev` extra installs `ruff`, `basedpyright`, `pyrefly`, `pytest`, and `aioboto3` (for type-checking the Massive adapter).
+
+### Run all checks
+
+```powershell
+.\scripts\run_checks.ps1
+```
+
+```bash
+./scripts/run_checks.sh
+```
+
+This runs, in order: **typecheck import root** → **ruff** → **basedpyright** → **pyrefly** → **pytest** (≥95% coverage).
+
+### Type-check import root
+
+Source lives under `src/` but installs as the `finpipe` package. Static analyzers need a `finpipe/` directory on the import path without duplicating `src/` in the same check.
+
+`scripts/ensure_typecheck_import_root.py` creates a junction at `typecheck/finpipe` → `src` (gitignored). `basedpyright`, `pyrefly`, and pytest (`pythonpath = ["typecheck"]` in `pyproject.toml`) use that alias. Pre-commit and `run_checks` call the ensure script automatically.
+
+See [architecture.md](./architecture.md#development-workflow-and-quality-gates) for hook details and the architecture-doc sync rule.
+
+---
+
 ## Related files
 
 | File | Purpose |
 |------|---------|
 | [finpipe.settings.example.json](./finpipe.settings.example.json) | Full settings template |
 | [architecture.md](./architecture.md) | System design, rate limiting, stability rules |
+| [../scripts/run_checks.ps1](../scripts/run_checks.ps1) | Local quality gate (ruff, type checkers, pytest) |
 | [../scripts/test_pipeline.py](../scripts/test_pipeline.py) | End-to-end integration script |
 
 ---
 
 ## Version
 
-This document matches finpipe **v0.1.0**. When composite facades (`client.equity`, etc.) are implemented, update the [Using `Client`](#two-api-tiers) section and prefer capability facades in application code.
+This document matches finpipe **v0.1.0** with composite routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; use named adapters only when you need a specific backend.

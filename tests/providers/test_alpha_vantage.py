@@ -3,7 +3,6 @@ from datetime import date
 import httpx
 import pytest
 import respx
-
 from finpipe.core.exceptions import FinpipeDataNotFoundError
 from finpipe.providers.alpha_vantage import AlphaVantageAdapter
 

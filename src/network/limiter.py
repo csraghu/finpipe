@@ -1,10 +1,8 @@
 import asyncio
-import contextlib
 import logging
 import sqlite3
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from finpipe._internal.aimd import (
     AIMD_ADDITIVE_INCREASE_RPS,
@@ -15,9 +13,7 @@ from finpipe._internal.aimd import (
     initial_rate_for_cap,
 )
 from finpipe._internal.limits import get_hard_cap_rps
-
-if TYPE_CHECKING:
-    from finpipe.network.concurrency import DynamicConcurrencyLimiter
+from finpipe.core.config import RateLimitConfig
 
 logger = logging.getLogger(__name__)
 
@@ -170,14 +166,14 @@ class AdaptiveRateLimiter:
 
 def build_adaptive_limiter(
     namespace: str,
-    config: "RateLimitConfig",
-    db_path: str,
+    config: RateLimitConfig,
+    db_path: str | None = None,
 ) -> AdaptiveRateLimiter:
-    from finpipe.core.config import RateLimitConfig
+    from finpipe.network.resilience import rate_limit_db_path
 
-    assert isinstance(config, RateLimitConfig)
+    resolved_db = db_path or rate_limit_db_path(None)
     return AdaptiveRateLimiter(
         namespace=namespace,
         hard_cap_rps=config.max_requests_per_second,
-        db_path=db_path,
+        db_path=resolved_db,
     )

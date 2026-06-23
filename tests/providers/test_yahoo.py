@@ -3,7 +3,6 @@ from datetime import date
 import pandas as pd
 import polars as pl
 import pytest
-
 from finpipe.providers.yahoo import YahooFinanceAdapter
 
 

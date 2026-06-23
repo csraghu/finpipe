@@ -3,11 +3,11 @@ import os
 from datetime import date, datetime
 from typing import Any
 
-import aioboto3
+import aioboto3  # pyright: ignore[reportMissingImports]
 import pandas as pd
 import polars as pl
-from botocore.config import Config as BotoConfig
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.config import Config as BotoConfig  # pyright: ignore[reportMissingImports]
+from botocore.exceptions import BotoCoreError, ClientError  # pyright: ignore[reportMissingImports]
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeDataNotFoundError
 from finpipe.core.interfaces import IOptionsProvider

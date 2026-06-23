@@ -1896,7 +1896,9 @@ sequenceDiagram
 3. **Error translation** — Provider exceptions → `Finpipe*Error` (never leak transport / vendor types across boundary)
 4. **Shutdown** — `Client.__aexit__` / `close()` closes transport sessions (idempotent; swallow curl_cffi teardown quirks on Windows — aksh pattern)
 
-### Composite primary/fallback (from aksh `EquityDataService`)
+### Composite primary/fallback (implemented in `providers/composite/__init__.py`)
+
+`Client` wires `CompositeEquityService`, `CompositeOptionsService`, and `CompositeIntelService` with adapter dicts and `RoutingConfig` primary/fallback keys. `call_with_fallback()` invokes the primary provider method and, on any exception, retries the fallback before raising `FinpipeProviderDownError`.
 
 Per-method rules (preserve aksh semantics):
 
@@ -2161,6 +2163,7 @@ pre-commit install
 |------|------|---------|
 | `ruff` | Ruff linter | Style, imports, complexity (auto-fix) |
 | `ruff-format` | Ruff formatter | Consistent formatting |
+| `ensure-typecheck-import-root` | `scripts/ensure_typecheck_import_root.py` | Creates `typecheck/finpipe` → `src` junction so `finpipe.*` imports resolve for static analysis |
 | `basedpyright` | basedpyright | Static type checking |
 | `pyrefly` | Pyrefly | Secondary type checker / IDE parity |
 | `architecture-docs` | `scripts/check_architecture_docs.py` | Blocks commit if `src/` changed without `docs/architecture.md` |
@@ -2173,6 +2176,12 @@ pre-commit install
 # or
 pre-commit run --all-files
 ```
+
+### Type-check import root
+
+Source lives under `src/` but installs as the `finpipe` package (`[tool.setuptools.package-dir]`). Static analyzers need a `finpipe/` directory on the import path without duplicating `src/` in the same check.
+
+`scripts/ensure_typecheck_import_root.py` (run by pre-commit and `run_checks`) creates a **junction** at `typecheck/finpipe` → `src`. `basedpyright`, `pyrefly`, and pytest (`pythonpath = ["typecheck"]`) use that alias. The junction is gitignored (`/typecheck/finpipe`); commit only `typecheck/.gitkeep`.
 
 ### Architecture doc sync rule
 

@@ -127,7 +127,7 @@ async def run_pipeline():
                     summary_stats["network_errors"] += 1
                 except FinpipeDataNotFoundError as e:
                     logger.warning(f"[NOT FOUND] {task_name} for {symbol}: {e}")
-                    # We expected this for mocked/demo endpoints, so we intentionally don't print the traceback
+                    # Expected for mocked endpoints; skip printing the traceback.
                     summary_stats["other_errors"] += 1
                 except Exception as e:
                     logger.error(f"[FAILED] {task_name} for {symbol}: {e}", exc_info=True)

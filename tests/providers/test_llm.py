@@ -1,7 +1,6 @@
 import httpx
 import pytest
 import respx
-
 from finpipe.providers.gemini import GeminiAdapter
 from finpipe.providers.groq import GroqAdapter
 

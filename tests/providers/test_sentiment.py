@@ -1,7 +1,6 @@
 import httpx
 import pytest
 import respx
-
 from finpipe.core.config import FinpipeConfig
 from finpipe.providers.sentiment import NewsSentimentAdapter
 
@@ -12,7 +11,8 @@ async def test_news_sentiment_adapter_news(config):
 
     xml_mock = """<?xml version="1.0" encoding="UTF-8"?>
     <rss><channel>
-        <item><title>Test News</title><link>http://test</link><pubDate>Wed, 01 Jan 2023 00:00:00 GMT</pubDate></item>
+        <item><title>Test News</title><link>http://test</link>
+        <pubDate>Wed, 01 Jan 2023 00:00:00 GMT</pubDate></item>
     </channel></rss>"""
 
     with respx.mock:

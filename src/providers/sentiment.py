@@ -95,6 +95,11 @@ class NewsSentimentAdapter(IMarketIntelProvider):
             logger.warning("Google News RSS failed: %s", exc)
             return []
 
+    async def get_google_news(
+        self, symbol: str | None = None, limit: int = 20
+    ) -> list[NewsArticle]:
+        return await self._fetch_google_news(symbol, limit)
+
     async def get_news(self, symbol: str | None = None, limit: int = 20) -> list[NewsArticle]:
         cache_key = f"news_{symbol}_{limit}"
         cached = self._cache.get(cache_key)
@@ -193,6 +198,99 @@ class NewsSentimentAdapter(IMarketIntelProvider):
         except Exception as exc:
             logger.warning("Reddit analysis failed for %s: %s", symbol, exc)
             return 0, 0
+
+    async def get_stocktwits_messages(
+        self, symbol: str, limit: int = 30
+    ) -> list[dict[str, str]]:
+        client = self._client_for("stocktwits")
+        if client is None:
+            return []
+
+        cache_key = self._source_cache_key("stocktwits", f"msgs_{symbol}_{limit}")
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
+        try:
+            response = await client.request("GET", url)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as exc:
+            logger.warning("Stocktwits messages failed for %s: %s", symbol, exc)
+            return []
+
+        messages: list[dict[str, str]] = []
+        for msg in data.get("messages", [])[:limit]:
+            body = msg.get("body", "")
+            user = msg.get("user", {})
+            username = user.get("username", "unknown")
+            msg_id = msg.get("id", "")
+            if not body or not msg_id:
+                continue
+            messages.append(
+                {
+                    "text": body,
+                    "url": f"https://stocktwits.com/{username}/message/{msg_id}",
+                    "created_at": str(msg.get("created_at", "")),
+                    "user": username,
+                }
+            )
+        self._cache.set(
+            cache_key,
+            messages,
+            self._provider_config.resolve_source_fetch_ttl("stocktwits"),
+        )
+        return messages
+
+    async def get_reddit_posts(
+        self, symbol: str, limit: int = 25
+    ) -> list[dict[str, str]]:
+        client = self._client_for("reddit")
+        if client is None:
+            return []
+
+        cache_key = self._source_cache_key("reddit", f"posts_{symbol}_{limit}")
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        source_cfg = self._provider_config.sources.reddit
+        user_agent = source_cfg.http.user_agent or "finpipe-scraper/1.0"
+        url = (
+            "https://www.reddit.com/r/wallstreetbets/search.json"
+            f"?q={symbol}&restrict_sr=1&sort=new&limit={limit}"
+        )
+        try:
+            response = await client.request(
+                "GET", url, headers={"User-Agent": user_agent}
+            )
+            response.raise_for_status()
+            data = response.json()
+        except Exception as exc:
+            logger.warning("Reddit posts failed for %s: %s", symbol, exc)
+            return []
+
+        posts: list[dict[str, str]] = []
+        for post in data.get("data", {}).get("children", []):
+            post_data = post.get("data", {})
+            title = (post_data.get("title") or "").strip()
+            permalink = post_data.get("permalink", "")
+            if not title or not permalink:
+                continue
+            posts.append(
+                {
+                    "title": title,
+                    "description": post_data.get("selftext", title) or title,
+                    "link": f"https://www.reddit.com{permalink}",
+                }
+            )
+        self._cache.set(
+            cache_key,
+            posts,
+            self._provider_config.resolve_source_fetch_ttl("reddit"),
+        )
+        return posts
 
     async def get_sentiment_score(self, symbol: str) -> SentimentScore:
         cache_key = f"sentiment_{symbol}"

@@ -5,7 +5,6 @@ from typing import Any
 
 import pandas as pd
 import polars as pl
-
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeDataNotFoundError
 from finpipe.core.interfaces import IHistoricalPriceProvider, IMetadataProvider
@@ -78,7 +77,8 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider):
                 self._provider_config.ttls.historical_prices_sec,
             )
 
-        mask = (df["timestamp"].dt.date >= start_date) & (df["timestamp"].dt.date <= end_date)
+        days = pd.to_datetime(df["timestamp"]).dt.normalize()
+        mask = (days >= pd.Timestamp(start_date)) & (days <= pd.Timestamp(end_date))
         return self._format_dataframe(df.loc[mask])
 
     async def get_live_spot_price(self, symbol: str) -> float | None:
