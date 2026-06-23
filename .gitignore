@@ -11,6 +11,8 @@ venv/
 .coverage
 coverage.json
 .env
+.vscode
+.cursor
 *.pyc
 .zed/settings.json
 env.sh
