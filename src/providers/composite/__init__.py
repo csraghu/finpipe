@@ -11,7 +11,14 @@ import pandas as pd
 import polars as pl
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeProviderDownError
-from finpipe.core.models import NewsArticle, OptionChain, SentimentScore, TickerMetadata
+from finpipe.core.models import (
+    NewsArticle,
+    OptionChain,
+    SentimentScore,
+    SocialPost,
+    SocialPostKind,
+    TickerMetadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +263,7 @@ class CompositeMacroService:
 
 
 class CompositeIntelService:
-    """Routes market intel via the sentiment adapter and configured sources."""
+    """Abstract market intel facade (news, social, sentiment)."""
 
     def __init__(self, config: FinpipeConfig, *, sentiment: Any) -> None:
         self._config = config
@@ -267,20 +274,14 @@ class CompositeIntelService:
     ) -> list[NewsArticle]:
         return await self._sentiment.get_news(symbol, limit=limit)
 
-    async def get_google_news(
-        self, symbol: str | None = None, limit: int = 20
-    ) -> list[NewsArticle]:
-        return await self._sentiment.get_google_news(symbol, limit=limit)
-
-    async def get_reddit_posts(
-        self, symbol: str, limit: int = 25
-    ) -> list[dict[str, Any]]:
-        return await self._sentiment.get_reddit_posts(symbol, limit=limit)
-
-    async def get_stocktwits_messages(
-        self, symbol: str, limit: int = 30
-    ) -> list[dict[str, Any]]:
-        return await self._sentiment.get_stocktwits_messages(symbol, limit=limit)
+    async def get_social_posts(
+        self,
+        symbol: str,
+        *,
+        limit: int = 30,
+        kind: SocialPostKind | None = None,
+    ) -> list[SocialPost]:
+        return await self._sentiment.get_social_posts(symbol, limit=limit, kind=kind)
 
     async def get_sentiment_score(self, symbol: str) -> SentimentScore:
         return await self._sentiment.get_sentiment_score(symbol)

@@ -1,7 +1,15 @@
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class SocialPostKind(StrEnum):
+    """Abstract social channel kinds (not vendor names)."""
+
+    FORUM = "forum"
+    MICROBLOG = "microblog"
 
 
 class TickerMetadata(BaseModel):
@@ -51,6 +59,17 @@ class NewsArticle(BaseModel):
     publisher: str | None = None
     summary: str | None = None
     related_tickers: list[str] = Field(default_factory=list)
+
+
+class SocialPost(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    kind: SocialPostKind
+    text: str
+    url: str
+    title: str | None = None
+    author: str | None = None
+    created_at: datetime | None = None
 
 
 class SentimentScore(BaseModel):

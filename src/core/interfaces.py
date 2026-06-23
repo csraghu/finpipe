@@ -8,6 +8,8 @@ from finpipe.core.models import (
     NewsArticle,
     OptionChain,
     SentimentScore,
+    SocialPost,
+    SocialPostKind,
     TickerMetadata,
 )
 
@@ -53,6 +55,14 @@ class IMarketIntelProvider(Protocol):
     async def get_news(
         self, symbol: str | None = None, limit: int = 20
     ) -> list[NewsArticle]: ...
+
+    async def get_social_posts(
+        self,
+        symbol: str,
+        *,
+        limit: int = 30,
+        kind: SocialPostKind | None = None,
+    ) -> list[SocialPost]: ...
 
     async def get_sentiment_score(self, symbol: str) -> SentimentScore: ...
 

@@ -1,6 +1,6 @@
 # finpipe API reference & application guide
 
-This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.2.0.
+This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.3.0.
 
 For internal design (rate limiting, transport choices, migration from aksh), see [architecture.md](./architecture.md).
 
@@ -340,7 +340,7 @@ finally:
 | **Application API** | `client.equity`, `.options`, `.intel`, `.macro`, `.screener`, `.llm` | Semver-stable (target) | **Implemented** for equity, options, intel — routes via `routing.*_primary` / `*_fallback` |
 | **Provider API** | `client.yahoo`, `.fred`, `.massive`, … | For tests / advanced use | **Implemented** — direct adapter access |
 
-**Applications should call capability facades** (`client.equity.get_metadata`, `client.options.fetch_options_snapshot`, `client.intel.get_google_news`, …). Routing is controlled in `finpipe.settings.json`:
+**Applications should call capability facades** (`client.equity.get_metadata`, `client.options.get_options_chain`, `client.intel.get_news`, …). Routing is controlled in `finpipe.settings.json`:
 
 ```json
 {
@@ -358,12 +358,15 @@ On failure, composites try the fallback provider before raising `FinpipeProvider
 ### Composite examples
 
 ```python
+from finpipe.core.models import SocialPostKind
+
 async with Client(config) as client:
     meta = await client.equity.get_metadata("AAPL")
     chain = await client.equity.get_options_chain("AAPL")
     snaps = await client.options.fetch_options_snapshot("SPY", limit=50)
-    headlines = await client.intel.get_google_news("NVDA", limit=10)
-    posts = await client.intel.get_reddit_posts("TSLA")
+    headlines = await client.intel.get_news("NVDA", limit=10)
+    forum_posts = await client.intel.get_social_posts("TSLA", kind=SocialPostKind.FORUM)
+    sentiment = await client.intel.get_sentiment_score("TSLA")
 ```
 
 Named adapters remain on `Client` for backward compatibility and tests.
@@ -404,7 +407,7 @@ Additional types (import explicitly; not in `finpipe.__all__`):
 
 ```python
 from finpipe.core.interfaces import IHistoricalPriceProvider, IOptionsProvider, ...
-from finpipe.core.models import TickerMetadata, OptionChain, SentimentScore, LLMResponse, ...
+from finpipe.core.models import TickerMetadata, OptionChain, SentimentScore, SocialPost, SocialPostKind, LLMResponse, ...
 ```
 
 ---
@@ -444,7 +447,8 @@ Defined in `finpipe.core.interfaces`. All I/O methods are `async def`.
 
 | Method | Returns |
 |--------|---------|
-| `get_news(symbol=None, limit=20)` | `list[NewsArticle]` |
+| `get_news(symbol=None, limit=20)` | `list[NewsArticle]` — all enabled news sources |
+| `get_social_posts(symbol, *, limit=30, kind=None)` | `list[SocialPost]` — forum/microblog; `kind` filters channel |
 | `get_sentiment_score(symbol)` | `SentimentScore` |
 
 ### `IScreenerProvider`
@@ -670,4 +674,4 @@ See [architecture.md](./architecture.md#development-workflow-and-quality-gates) 
 
 ## Version
 
-This document matches finpipe **v0.2.0** with composite routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; use named adapters only when you need a specific backend.
+This document matches finpipe **v0.3.0** with abstract capability routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; named adapters (`client.yahoo`, …) are for tests and advanced debugging only.

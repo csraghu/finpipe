@@ -2,6 +2,7 @@ import httpx
 import pytest
 import respx
 from finpipe.core.config import FinpipeConfig
+from finpipe.core.models import SocialPostKind
 from finpipe.providers.sentiment import NewsSentimentAdapter
 
 
@@ -82,3 +83,32 @@ async def test_sentiment_source_ttl_caches_fetch(config):
         await adapter._fetch_stocktwits_sentiment("AAPL")
         await adapter._fetch_stocktwits_sentiment("AAPL")
         assert route.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_news_sentiment_adapter_social_posts(config):
+    adapter = NewsSentimentAdapter(config)
+    json_mock = {
+        "data": {
+            "children": [
+                {
+                    "data": {
+                        "title": "AAPL moon",
+                        "selftext": "calls",
+                        "permalink": "/r/wsb/comments/abc/aapl/",
+                    }
+                }
+            ]
+        }
+    }
+
+    with respx.mock:
+        respx.get(url__startswith="https://www.reddit.com").mock(
+            return_value=httpx.Response(200, json=json_mock)
+        )
+        posts = await adapter.get_social_posts(
+            "AAPL", limit=5, kind=SocialPostKind.FORUM
+        )
+        assert len(posts) == 1
+        assert posts[0].kind == SocialPostKind.FORUM
+        assert posts[0].title == "AAPL moon"

@@ -6,7 +6,7 @@ from email.utils import parsedate_to_datetime
 
 from finpipe.core.config import FinpipeConfig, SentimentSourceConfig
 from finpipe.core.interfaces import IMarketIntelProvider
-from finpipe.core.models import NewsArticle, SentimentScore
+from finpipe.core.models import NewsArticle, SentimentScore, SocialPost, SocialPostKind
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
@@ -94,11 +94,6 @@ class NewsSentimentAdapter(IMarketIntelProvider):
         except Exception as exc:
             logger.warning("Google News RSS failed: %s", exc)
             return []
-
-    async def get_google_news(
-        self, symbol: str | None = None, limit: int = 20
-    ) -> list[NewsArticle]:
-        return await self._fetch_google_news(symbol, limit)
 
     async def get_news(self, symbol: str | None = None, limit: int = 20) -> list[NewsArticle]:
         cache_key = f"news_{symbol}_{limit}"
@@ -199,9 +194,9 @@ class NewsSentimentAdapter(IMarketIntelProvider):
             logger.warning("Reddit analysis failed for %s: %s", symbol, exc)
             return 0, 0
 
-    async def get_stocktwits_messages(
+    async def _fetch_stocktwits_posts(
         self, symbol: str, limit: int = 30
-    ) -> list[dict[str, str]]:
+    ) -> list[SocialPost]:
         client = self._client_for("stocktwits")
         if client is None:
             return []
@@ -209,7 +204,7 @@ class NewsSentimentAdapter(IMarketIntelProvider):
         cache_key = self._source_cache_key("stocktwits", f"msgs_{symbol}_{limit}")
         cached = self._cache.get(cache_key)
         if cached is not None:
-            return cached
+            return [SocialPost(**item) for item in cached]
 
         url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
         try:
@@ -217,10 +212,10 @@ class NewsSentimentAdapter(IMarketIntelProvider):
             response.raise_for_status()
             data = response.json()
         except Exception as exc:
-            logger.warning("Stocktwits messages failed for %s: %s", symbol, exc)
+            logger.warning("Social microblog fetch failed for %s: %s", symbol, exc)
             return []
 
-        messages: list[dict[str, str]] = []
+        posts: list[SocialPost] = []
         for msg in data.get("messages", [])[:limit]:
             body = msg.get("body", "")
             user = msg.get("user", {})
@@ -228,24 +223,25 @@ class NewsSentimentAdapter(IMarketIntelProvider):
             msg_id = msg.get("id", "")
             if not body or not msg_id:
                 continue
-            messages.append(
-                {
-                    "text": body,
-                    "url": f"https://stocktwits.com/{username}/message/{msg_id}",
-                    "created_at": str(msg.get("created_at", "")),
-                    "user": username,
-                }
+            posts.append(
+                SocialPost(
+                    kind=SocialPostKind.MICROBLOG,
+                    text=body,
+                    url=f"https://stocktwits.com/{username}/message/{msg_id}",
+                    author=username,
+                    created_at=None,
+                )
             )
         self._cache.set(
             cache_key,
-            messages,
+            [post.model_dump() for post in posts],
             self._provider_config.resolve_source_fetch_ttl("stocktwits"),
         )
-        return messages
+        return posts
 
-    async def get_reddit_posts(
+    async def _fetch_reddit_posts(
         self, symbol: str, limit: int = 25
-    ) -> list[dict[str, str]]:
+    ) -> list[SocialPost]:
         client = self._client_for("reddit")
         if client is None:
             return []
@@ -253,7 +249,7 @@ class NewsSentimentAdapter(IMarketIntelProvider):
         cache_key = self._source_cache_key("reddit", f"posts_{symbol}_{limit}")
         cached = self._cache.get(cache_key)
         if cached is not None:
-            return cached
+            return [SocialPost(**item) for item in cached]
 
         source_cfg = self._provider_config.sources.reddit
         user_agent = source_cfg.http.user_agent or "finpipe-scraper/1.0"
@@ -268,27 +264,62 @@ class NewsSentimentAdapter(IMarketIntelProvider):
             response.raise_for_status()
             data = response.json()
         except Exception as exc:
-            logger.warning("Reddit posts failed for %s: %s", symbol, exc)
+            logger.warning("Social forum fetch failed for %s: %s", symbol, exc)
             return []
 
-        posts: list[dict[str, str]] = []
+        posts: list[SocialPost] = []
         for post in data.get("data", {}).get("children", []):
             post_data = post.get("data", {})
             title = (post_data.get("title") or "").strip()
             permalink = post_data.get("permalink", "")
             if not title or not permalink:
                 continue
+            description = post_data.get("selftext", title) or title
             posts.append(
-                {
-                    "title": title,
-                    "description": post_data.get("selftext", title) or title,
-                    "link": f"https://www.reddit.com{permalink}",
-                }
+                SocialPost(
+                    kind=SocialPostKind.FORUM,
+                    text=description,
+                    title=title,
+                    url=f"https://www.reddit.com{permalink}",
+                )
             )
         self._cache.set(
             cache_key,
-            posts,
+            [post.model_dump() for post in posts],
             self._provider_config.resolve_source_fetch_ttl("reddit"),
+        )
+        return posts
+
+    async def get_social_posts(
+        self,
+        symbol: str,
+        *,
+        limit: int = 30,
+        kind: SocialPostKind | None = None,
+    ) -> list[SocialPost]:
+        cache_key = f"social_{symbol}_{limit}_{kind or 'all'}"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return [SocialPost(**item) for item in cached]
+
+        fetch_tasks = []
+        if kind in (None, SocialPostKind.MICROBLOG) and self._client_for("stocktwits"):
+            fetch_tasks.append(self._fetch_stocktwits_posts(symbol, limit))
+        if kind in (None, SocialPostKind.FORUM) and self._client_for("reddit"):
+            fetch_tasks.append(self._fetch_reddit_posts(symbol, limit))
+
+        if not fetch_tasks:
+            return []
+
+        batches = await asyncio.gather(*fetch_tasks)
+        posts: list[SocialPost] = []
+        for batch in batches:
+            posts.extend(batch)
+        posts = posts[:limit]
+        self._cache.set(
+            cache_key,
+            [post.model_dump() for post in posts],
+            self._provider_config.ttls.news_sec,
         )
         return posts
 
@@ -302,10 +333,10 @@ class NewsSentimentAdapter(IMarketIntelProvider):
         sources_used: list[str] = []
         if self._client_for("stocktwits") is not None:
             tasks.append(self._fetch_stocktwits_sentiment(symbol))
-            sources_used.append("Stocktwits")
+            sources_used.append("microblog")
         if self._client_for("reddit") is not None:
             tasks.append(self._fetch_reddit_sentiment(symbol))
-            sources_used.append("Reddit")
+            sources_used.append("forum")
 
         results = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
         total_bullish = 0

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class Client:
-    """Top-level facade for finpipe provider access."""
+    """Top-level facade. Prefer capability services (equity, options, intel, …)."""
 
     def __init__(self, config: FinpipeConfig | None = None):
         self.config = config or FinpipeConfig.load()
