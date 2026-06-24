@@ -44,7 +44,9 @@ finpipe = "src"
 [tool.setuptools]
 packages = [
     "finpipe",
+    "finpipe.catalog",
     "finpipe.core",
+    "finpipe.health",
     "finpipe.network",
     "finpipe.providers",
     "finpipe.providers.composite",
