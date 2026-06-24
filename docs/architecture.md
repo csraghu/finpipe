@@ -206,7 +206,7 @@ dev = ["pytest", "pytest-asyncio", "ruff", "basedpyright"]
 
 | Tier | Who uses it | Stability | Examples |
 |------|-------------|-----------|----------|
-| **Application API** | aksh, scripts, third-party apps | Semver-stable; backward compatible within major version | `client.equity`, `client.options`, `client.macro`, `client.intel`, `client.llm` |
+| **Application API** | aksh, scripts, third-party apps | Semver-stable; backward compatible within major version | `client.equity`, `client.options`, `client.macro`, `client.intel`, `client.llm`, `client.screener`, `client.health` |
 | **Provider API** | finpipe internals, provider tests, debugging | Unstable; may change when adapters are added/refactored | `client.yahoo`, `client.massive`, registry keys, `_internal/` |
 
 Applications bind to **what** data they need (historical prices, options chain, macro series), not **where** it comes from.

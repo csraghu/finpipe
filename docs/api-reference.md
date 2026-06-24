@@ -475,6 +475,34 @@ Source names for `run()`: `yahoo_trending`, `yahoo_predefined`, `finviz`, `tradi
 
 Configure per-source limits under `providers.screener.sources` in `finpipe.settings.json` (mirrors `providers.sentiment.sources`). Legacy `providers.tradingview` merges into `screener.sources.tradingview`.
 
+### `client.health` — provider connectivity probes
+
+Optional lightweight checks that providers respond (similar to aksh `provider_contract_probes`).
+
+| Method | Returns |
+|--------|---------|
+| `list_probe_keys()` | `list[str]` — probe keys that will run |
+| `check(probe_key)` | `ProbeResult` — one probe |
+| `check_all()` | `HealthReport` — all configured probes |
+
+Configure in `finpipe.settings.json`:
+
+```json
+"health": {
+  "enabled": true,
+  "probe_symbol": "SPY",
+  "probes": {
+    "equity.yahoo": { "enabled": true },
+    "screener.yahoo_trending": { "enabled": true },
+    "llm.groq": { "enabled": true }
+  }
+}
+```
+
+When `probes` is empty, all probes for **enabled** providers run. Probe keys use `{capability}.{provider_or_source}` (e.g. `intel.google_news`, `screener.finviz`, `options.massive`).
+
+`ProbeResult.status` is one of: `connected`, `degraded`, `unconfigured`, `error`, `disabled`, `skipped`.
+
 ### `ILLMProvider`
 
 | Method | Returns |
@@ -548,6 +576,7 @@ Sources configured under `providers.sentiment.sources` (`google_news`, `stocktwi
 | Method | API key |
 |--------|---------|
 | `generate_response(prompt, model=None, **kwargs)` | `GROQ_API_KEY` / `GEMINI_API_KEY` |
+| `list_models()` | `GROQ_API_KEY` / `GEMINI_API_KEY` — used by `client.health` LLM probes |
 
 Default model when `model` is omitted: `providers.groq.model` (`llama3-8b-8192`) or `providers.gemini.model` (`gemini-1.5-flash`). Per-call `model=` overrides the settings default.
 

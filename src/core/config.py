@@ -426,6 +426,34 @@ class RoutingConfig(BaseModel):
     llm_fallback: str | None = "gemini"
 
 
+class HealthProbeConfig(BaseModel):
+    """Toggle for one named health probe (see ``health.probes`` in settings)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = True
+
+
+class HealthConfig(BaseModel):
+    """Optional provider connectivity probes (``client.health``)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = True
+    probe_symbol: str = Field(
+        default="SPY",
+        min_length=1,
+        description="Equity symbol used for metadata/options/intel probes",
+    )
+    probes: dict[str, HealthProbeConfig] = Field(
+        default_factory=dict,
+        description=(
+            "Explicit probe keys to run (e.g. equity.yahoo, screener.yahoo_trending). "
+            "When empty, all probes for enabled providers are run."
+        ),
+    )
+
+
 class CacheConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -468,6 +496,7 @@ class FinpipeConfig(BaseModel):
     providers: ProviderGroupConfig = Field(default_factory=ProviderGroupConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
+    health: HealthConfig = Field(default_factory=HealthConfig)
 
     @model_validator(mode="before")
     @classmethod

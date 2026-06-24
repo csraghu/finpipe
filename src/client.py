@@ -2,6 +2,7 @@ import logging
 from typing import Any, Self
 
 from finpipe.core.config import FinpipeConfig
+from finpipe.health import HealthService
 from finpipe.providers.alpha_vantage import AlphaVantageAdapter
 from finpipe.providers.composite import (
     CompositeEquityService,
@@ -15,8 +16,8 @@ from finpipe.providers.fred import FredAdapter
 from finpipe.providers.gemini import GeminiAdapter
 from finpipe.providers.groq import GroqAdapter
 from finpipe.providers.massive import MassiveOptionsAdapter
-from finpipe.providers.sentiment import NewsSentimentAdapter
 from finpipe.providers.screener import ScreenerAdapter
+from finpipe.providers.sentiment import NewsSentimentAdapter
 from finpipe.providers.tradingview import TradingViewAdapter
 from finpipe.providers.yahoo import YahooFinanceAdapter
 
@@ -58,6 +59,7 @@ class Client:
         self.intel = CompositeIntelService(self.config, sentiment=self.sentiment)
         self.screener = CompositeScreenerService(self.config, screener=self._screener_adapter)
         self.llm = CompositeLlmService(self.config)
+        self.health = HealthService(self)
 
     @staticmethod
     def _ensure_registrations() -> None:

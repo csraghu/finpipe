@@ -27,6 +27,17 @@ class GroqAdapter(ILLMProvider):
     async def close(self) -> None:
         await self._client.close()
 
+    async def list_models(self) -> list[str]:
+        if not self._api_key:
+            return []
+        response = await self._client.request(
+            "GET",
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {self._api_key}"},
+        )
+        data = response.json()
+        return [model["id"] for model in data.get("data", []) if model.get("id")]
+
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any
     ) -> LLMResponse:

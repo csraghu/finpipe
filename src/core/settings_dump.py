@@ -151,6 +151,7 @@ def dump_settings(
         "dataframe_format": config.dataframe_format,
         "cache": config.cache.model_dump(mode="json"),
         "routing": config.routing.model_dump(mode="json"),
+        "health": config.health.model_dump(mode="json"),
         "capabilities": dump_capability_settings(config, providers),
         "providers": providers,
     }

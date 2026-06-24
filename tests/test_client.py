@@ -8,6 +8,7 @@ async def test_client_initialization_and_close(config):
         assert client.yahoo is not None
         assert client.massive is not None
         assert client.tradingview is not None
+        assert client.health is not None
 
     # After exiting the context manager, sessions should be closed
     assert client.alpha_vantage._client._client.is_closed

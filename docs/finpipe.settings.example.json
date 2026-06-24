@@ -19,6 +19,19 @@
     "llm_fallback": "gemini"
   },
 
+  "health": {
+    "enabled": true,
+    "probe_symbol": "SPY",
+    "probes": {
+      "equity.yahoo": { "enabled": true },
+      "options.massive": { "enabled": true },
+      "screener.yahoo_trending": { "enabled": true },
+      "screener.tradingview": { "enabled": true },
+      "intel.google_news": { "enabled": true },
+      "llm.groq": { "enabled": true }
+    }
+  },
+
   "providers": {
     "yahoo": {
       "enabled": true,

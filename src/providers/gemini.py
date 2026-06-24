@@ -27,6 +27,18 @@ class GeminiAdapter(ILLMProvider):
     async def close(self) -> None:
         await self._client.close()
 
+    async def list_models(self) -> list[str]:
+        if not self._api_key:
+            return []
+        url = f"{self._base_url}?key={self._api_key}"
+        response = await self._client.request("GET", url)
+        payload = response.json()
+        return [
+            name.split("/")[-1]
+            for model in payload.get("models", [])
+            if (name := model.get("name"))
+        ]
+
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any
     ) -> LLMResponse:

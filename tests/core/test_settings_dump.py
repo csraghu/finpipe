@@ -11,6 +11,8 @@ def test_dump_settings_includes_all_providers(config):
     assert settings["providers"]["fred"]["api_key"] == "test_fred"
     assert settings["cache"]["cache_type"] == "memory"
     assert settings["routing"]["equity_primary"] == "yahoo"
+    assert settings["health"]["enabled"] is True
+    assert settings["health"]["probe_symbol"] == "SPY"
 
 
 def test_dump_settings_redacts_secrets(config):
