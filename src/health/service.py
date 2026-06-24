@@ -15,6 +15,7 @@ from finpipe.health.probes import PROBE_RUNNERS
 from finpipe.health.registry import resolve_probe_keys
 
 if TYPE_CHECKING:
+    from finpipe.catalog.models import HealthProbeCatalogEntryResolved
     from finpipe.client import Client
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,14 @@ class HealthService:
 
     def list_probe_keys(self) -> list[str]:
         return resolve_probe_keys(self._config)
+
+    def describe_probes(self) -> list[HealthProbeCatalogEntryResolved]:
+        """Static probe catalog merged with current health config (no HTTP)."""
+        return self._client.catalog.list_health_probes()
+
+    def health_config_template(self) -> dict[str, object]:
+        """Suggested ``health.probes`` block for finpipe.settings.json."""
+        return self._client.catalog.health_config_template()
 
     async def check(self, probe_key: str) -> ProbeResult:
         if not self._config.health.enabled:

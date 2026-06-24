@@ -33,6 +33,10 @@ _INTEL_SOURCES = frozenset({"google_news", "stocktwits", "reddit"})
 _SCREENER_SOURCES = frozenset({"yahoo_trending", "yahoo_predefined", "finviz", "tradingview"})
 
 
+def is_probe_provider_enabled(providers: ProviderGroupConfig, probe_key: str) -> bool:
+    return _is_provider_enabled(providers, probe_key)
+
+
 def _is_provider_enabled(providers: ProviderGroupConfig, probe_key: str) -> bool:
     if probe_key in _PROBE_ENABLED:
         name = _PROBE_ENABLED[probe_key]

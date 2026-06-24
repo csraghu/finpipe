@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Self
 
+from finpipe.catalog import CatalogService
 from finpipe.core.config import FinpipeConfig
 from finpipe.health import HealthService
 from finpipe.providers.alpha_vantage import AlphaVantageAdapter
@@ -59,6 +60,7 @@ class Client:
         self.intel = CompositeIntelService(self.config, sentiment=self.sentiment)
         self.screener = CompositeScreenerService(self.config, screener=self._screener_adapter)
         self.llm = CompositeLlmService(self.config)
+        self.catalog = CatalogService(self)
         self.health = HealthService(self)
 
     @staticmethod

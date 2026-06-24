@@ -503,6 +503,31 @@ When `probes` is empty, all probes for **enabled** providers run. Probe keys use
 
 `ProbeResult.status` is one of: `connected`, `degraded`, `unconfigured`, `error`, `disabled`, `skipped`.
 
+| Method | Returns |
+|--------|---------|
+| `describe_probes()` | `list[HealthProbeCatalogEntry]` — probe catalog merged with config (no HTTP) |
+| `health_config_template()` | `dict` — suggested `health.probes` JSON block |
+
+### `client.catalog` — provider inventory (no HTTP)
+
+Read-only discovery for building `health.probes` and documentation. Separate from live probes.
+
+| Method | Returns |
+|--------|---------|
+| `list_providers(capability=None)` | All providers/sources with labels, return types, settings paths, and health probe linkage |
+| `list_health_probes()` | Same probes as `health.describe_probes()` |
+| `health_config_template()` | Suggested `health.probes` toggles from current config |
+
+Example:
+
+```python
+for row in client.catalog.list_providers(capability="screener"):
+    print(row.health_probe_key, row.returns, row.health_probe_would_run)
+
+template = client.catalog.health_config_template()
+# paste into finpipe.settings.json under "health": { "probes": template }
+```
+
 ### `ILLMProvider`
 
 | Method | Returns |
