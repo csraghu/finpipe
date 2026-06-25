@@ -282,6 +282,25 @@
       "ttls": {
         "generate_response_sec": 3600
       }
+    },
+
+    "nvidia": {
+      "enabled": true,
+      "model": "meta/llama-3.1-70b-instruct",
+      "temperature": 0.3,
+      "max_tokens": 512,
+      "rate_limits": {
+        "max_requests_per_second": 10.0,
+        "max_requests_per_minute": 30,
+        "max_tokens_per_minute": 30000,
+        "max_retries": 3,
+        "circuit_breaker_failure_threshold": 5,
+        "circuit_breaker_recovery_timeout_sec": 60.0,
+        "backoff_multiplier": 1.5
+      },
+      "ttls": {
+        "generate_response_sec": 3600
+      }
     }
   }
 }

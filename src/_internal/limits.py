@@ -28,6 +28,7 @@ DEFAULT_PROVIDER_HARD_LIMITS: dict[str, ProviderHardLimit] = {
     "massive": ProviderHardLimit("massive", max_requests_per_second=5.0),
     "groq": ProviderHardLimit("groq", max_rpm=30),
     "gemini": ProviderHardLimit("gemini", max_rpm=60),
+    "nvidia": ProviderHardLimit("nvidia", max_rpm=60),
     "stocktwits": ProviderHardLimit("stocktwits", max_rpm=60),
     "google_news": ProviderHardLimit("google_news", max_requests_per_second=1.0),
     "reddit": ProviderHardLimit("reddit", max_requests_per_second=0.5),

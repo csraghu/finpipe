@@ -3,6 +3,7 @@ import pytest
 import respx
 from finpipe.providers.gemini import GeminiAdapter
 from finpipe.providers.groq import GroqAdapter
+from finpipe.providers.nvidia import NvidiaAdapter
 
 
 @pytest.mark.asyncio
@@ -85,3 +86,45 @@ async def test_gemini_adapter_uses_configured_model(config):
         assert resp.content == "Gemini 2"
         assert resp.model_name == "gemini-2.0-flash"
         assert "gemini-2.0-flash" in str(route.calls.last.request.url)
+
+
+@pytest.mark.asyncio
+async def test_nvidia_adapter(config):
+    adapter = NvidiaAdapter(config)
+    json_mock = {
+        "choices": [{"message": {"content": "Hello NVIDIA"}}],
+        "usage": {"prompt_tokens": 8, "completion_tokens": 3},
+    }
+
+    with respx.mock:
+        respx.post("https://integrate.api.nvidia.com/v1/chat/completions").mock(
+            return_value=httpx.Response(200, json=json_mock)
+        )
+        resp = await adapter.generate_response("Say hello")
+        assert resp.content == "Hello NVIDIA"
+        assert resp.model_name == "meta/llama-3.1-70b-instruct"
+        assert resp.prompt_tokens == 8
+
+
+@pytest.mark.asyncio
+async def test_nvidia_adapter_uses_configured_model(config):
+    from finpipe.core.config import FinpipeConfig
+
+    custom = FinpipeConfig.from_dict(
+        {"providers": {"nvidia": {"model": "meta/llama-3.3-70b-instruct"}}}
+    )
+    adapter = NvidiaAdapter(custom)
+    json_mock = {
+        "choices": [{"message": {"content": "NVIDIA custom"}}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+    }
+
+    with respx.mock:
+        route = respx.post("https://integrate.api.nvidia.com/v1/chat/completions").mock(
+            return_value=httpx.Response(200, json=json_mock)
+        )
+        resp = await adapter.generate_response("Say hello")
+        assert resp.content == "NVIDIA custom"
+        assert resp.model_name == "meta/llama-3.3-70b-instruct"
+        assert route.calls.last.request.content is not None
+        assert b"meta/llama-3.3-70b-instruct" in route.calls.last.request.content

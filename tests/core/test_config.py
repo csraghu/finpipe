@@ -117,6 +117,7 @@ def test_provider_ttls_merge_from_dict():
 def test_llm_provider_default_models(config):
     assert config.providers.groq.model == "llama3-8b-8192"
     assert config.providers.gemini.model == "gemini-1.5-flash"
+    assert config.providers.nvidia.model == "meta/llama-3.1-70b-instruct"
 
 
 def test_llm_provider_model_merge_from_dict():

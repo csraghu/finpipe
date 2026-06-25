@@ -17,6 +17,7 @@ DEFAULT_PROBE_KEYS: tuple[str, ...] = (
     "screener.tradingview",
     "llm.groq",
     "llm.gemini",
+    "llm.nvidia",
 )
 
 _PROBE_ENABLED: dict[str, str] = {
@@ -27,6 +28,7 @@ _PROBE_ENABLED: dict[str, str] = {
     "macro.fred": "fred",
     "llm.groq": "groq",
     "llm.gemini": "gemini",
+    "llm.nvidia": "nvidia",
 }
 
 _INTEL_SOURCES = frozenset({"google_news", "stocktwits", "reddit"})

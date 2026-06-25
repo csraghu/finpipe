@@ -13,6 +13,7 @@ def mock_env_vars(monkeypatch):
     monkeypatch.setenv("FRED_API_KEY", "test_fred")
     monkeypatch.setenv("GEMINI_API_KEY", "test_gemini")
     monkeypatch.setenv("GROQ_API_KEY", "test_groq")
+    monkeypatch.setenv("NVIDIA_API_KEY", "test_nvidia")
     monkeypatch.setenv("ALPHA_VANTAGE_API_KEY", "test_av")
     monkeypatch.setenv("FINPIPE_CACHE_BACKEND", "memory")
 

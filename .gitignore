@@ -22,3 +22,4 @@ env_exp.sh
 .zed/settings.json
 env.sh
 requirements.txt
+graphify-out/

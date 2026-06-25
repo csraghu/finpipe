@@ -127,6 +127,16 @@ async def probe_llm_gemini(client: Client, symbol: str) -> str | None:
     return None
 
 
+async def probe_llm_nvidia(client: Client, symbol: str) -> str | None:
+    del symbol
+    if not client.config.providers.nvidia.api_key:
+        raise FinpipeConfigError("NVIDIA_API_KEY not configured")
+    models = await client.nvidia.list_models()
+    if not models:
+        return "nvidia models list empty"
+    return None
+
+
 PROBE_RUNNERS = {
     "equity.yahoo": probe_equity_yahoo,
     "equity.alpha_vantage": probe_equity_alpha_vantage,
@@ -142,4 +152,5 @@ PROBE_RUNNERS = {
     "screener.tradingview": probe_screener_tradingview,
     "llm.groq": probe_llm_groq,
     "llm.gemini": probe_llm_gemini,
+    "llm.nvidia": probe_llm_nvidia,
 }

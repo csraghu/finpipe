@@ -19,6 +19,7 @@ PROVIDER_NAMES: tuple[str, ...] = (
     "sentiment",
     "groq",
     "gemini",
+    "nvidia",
 )
 
 
@@ -73,7 +74,7 @@ CAPABILITY_SETTINGS: tuple[CapabilitySettings, ...] = (
         "llm",
         "llm_primary",
         "llm_fallback",
-        ("groq", "gemini"),
+        ("groq", "gemini", "nvidia"),
         ("ILLMProvider",),
     ),
 )

@@ -13,12 +13,14 @@ _REQUIRED_KEYS: dict[str, tuple[str, str]] = {
     "alpha_vantage_api_key": ("ALPHA_VANTAGE_API_KEY", "alpha_vantage"),
     "groq_api_key": ("GROQ_API_KEY", "groq"),
     "gemini_api_key": ("GEMINI_API_KEY", "gemini"),
+    "nvidia_api_key": ("NVIDIA_API_KEY", "nvidia"),
     "massive_api_key": ("MASSIVE_API_KEY", "massive"),
 }
 
 
 DEFAULT_GROQ_MODEL = "llama3-8b-8192"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
+DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-70b-instruct"
 
 
 class RateLimitConfig(BaseModel):
@@ -93,7 +95,7 @@ class TradingViewTTLConfig(BaseModel):
 
 
 class LlmTTLConfig(BaseModel):
-    """TTLs for ILLMProvider (Groq, Gemini)."""
+    """TTLs for ILLMProvider (Groq, Gemini, NVIDIA)."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -305,6 +307,28 @@ class GeminiConfig(AbstractProviderConfig):
             raise FinpipeConfigError("Missing required API key configuration: GEMINI_API_KEY")
 
 
+class NvidiaConfig(AbstractProviderConfig):
+    rate_limits: RateLimitConfig = Field(
+        default_factory=lambda: RateLimitConfig(
+            max_requests_per_second=10.0,
+            max_requests_per_minute=30,
+            max_tokens_per_minute=30_000,
+        )
+    )
+    ttls: LlmTTLConfig = Field(default_factory=LlmTTLConfig)
+    model: str = Field(
+        default=DEFAULT_NVIDIA_MODEL,
+        description="Default NVIDIA NIM model when generate_response is called without model=",
+    )
+    temperature: float = Field(default=0.3, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=512, ge=1)
+    api_key: str | None = Field(default_factory=lambda: os.getenv("NVIDIA_API_KEY"))
+
+    def ensure_configured(self) -> None:
+        if not self.api_key:
+            raise FinpipeConfigError("Missing required API key configuration: NVIDIA_API_KEY")
+
+
 class MassiveConfig(AbstractProviderConfig):
     rate_limits: RateLimitConfig = Field(
         default_factory=lambda: RateLimitConfig(max_requests_per_second=5.0)
@@ -412,6 +436,7 @@ class ProviderGroupConfig(BaseModel):
     massive: MassiveConfig = Field(default_factory=MassiveConfig)
     groq: GroqConfig = Field(default_factory=GroqConfig)
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
+    nvidia: NvidiaConfig = Field(default_factory=NvidiaConfig)
     tradingview: TradingViewConfig = Field(default_factory=TradingViewConfig)
 
 

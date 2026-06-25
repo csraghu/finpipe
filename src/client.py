@@ -16,6 +16,7 @@ from finpipe.providers.composite import (
 from finpipe.providers.fred import FredAdapter
 from finpipe.providers.gemini import GeminiAdapter
 from finpipe.providers.groq import GroqAdapter
+from finpipe.providers.nvidia import NvidiaAdapter
 from finpipe.providers.massive import MassiveOptionsAdapter
 from finpipe.providers.screener import ScreenerAdapter
 from finpipe.providers.sentiment import NewsSentimentAdapter
@@ -41,6 +42,7 @@ class Client:
         self.sentiment = NewsSentimentAdapter(self.config)
         self.groq = GroqAdapter(self.config)
         self.gemini = GeminiAdapter(self.config)
+        self.nvidia = NvidiaAdapter(self.config)
 
         equity_adapters = {
             "yahoo": self.yahoo,
@@ -75,6 +77,7 @@ class Client:
         await self.sentiment.close()
         await self.groq.close()
         await self.gemini.close()
+        await self.nvidia.close()
         logger.info("Finpipe client gracefully shut down.")
 
     async def __aenter__(self) -> Self:

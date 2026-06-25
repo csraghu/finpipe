@@ -17,6 +17,7 @@ _PROBE_ACTIONS: dict[str, str] = {
     "screener.tradingview": "Call TradingView scanner with limit=1",
     "llm.groq": "Call Groq models.list API",
     "llm.gemini": "Call Gemini models.list API",
+    "llm.nvidia": "Call NVIDIA NIM models.list API",
 }
 
 PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
@@ -162,6 +163,16 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         settings_path="providers.gemini",
         api_surface="client.gemini.generate_response / client.llm.*",
         health_probe_key="llm.gemini",
+    ),
+    ProviderCatalogEntry(
+        provider_id="nvidia",
+        capability="llm",
+        label="NVIDIA NIM",
+        description="NVIDIA build.nvidia.com chat completions API (OpenAI-compatible).",
+        returns="LLMResponse text; list[str] model ids",
+        settings_path="providers.nvidia",
+        api_surface="client.nvidia.generate_response / client.llm.*",
+        health_probe_key="llm.nvidia",
     ),
 )
 
