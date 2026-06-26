@@ -80,5 +80,12 @@ class ILLMProvider(Protocol):
 
 
 @runtime_checkable
+class IProviderDescribe(Protocol):
+    """Provider introspection — returns JSON-serializable, provider-specific metadata."""
+
+    async def describe(self) -> dict[str, Any]: ...
+
+
+@runtime_checkable
 class ICloseable(Protocol):
     async def close(self) -> None: ...

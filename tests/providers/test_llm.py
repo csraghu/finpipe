@@ -1,9 +1,35 @@
+from __future__ import annotations
+
 import httpx
 import pytest
 import respx
+from finpipe.core.config import GroqConfig
+from finpipe.providers.descriptor import provider_descriptor, redact_secrets
 from finpipe.providers.gemini import GeminiAdapter
 from finpipe.providers.groq import GroqAdapter
 from finpipe.providers.nvidia import NvidiaAdapter
+
+
+def test_redact_secrets_masks_api_keys():
+    data = {"api_key": "secret", "model": "test", "nested": {"access_key_id": "abc"}}
+    redacted = redact_secrets(data)
+    assert redacted["api_key"] == "<configured>"
+    assert redacted["model"] == "test"
+    assert redacted["nested"]["access_key_id"] == "<configured>"
+
+
+def test_provider_descriptor_includes_settings():
+    cfg = GroqConfig(api_key="secret", enabled=True)
+    payload = provider_descriptor(
+        provider_id="groq",
+        capability="llm",
+        provider_config=cfg,
+        configured=True,
+        details={"models": ["a"]},
+    )
+    assert payload["provider_id"] == "groq"
+    assert payload["settings"]["api_key"] == "<configured>"
+    assert payload["details"]["models"] == ["a"]
 
 
 @pytest.mark.asyncio
@@ -48,6 +74,24 @@ async def test_groq_adapter_uses_configured_model(config):
 
 
 @pytest.mark.asyncio
+async def test_groq_describe_includes_models_and_limits(config):
+    adapter = GroqAdapter(config)
+
+    with respx.mock:
+        respx.get("https://api.groq.com/openai/v1/models").mock(
+            return_value=httpx.Response(200, json={"data": [{"id": "llama3-8b-8192"}]})
+        )
+        info = await adapter.describe()
+
+    assert info["provider_id"] == "groq"
+    assert info["capability"] == "llm"
+    assert info["details"]["default_model"]
+    assert info["details"]["models"] == ["llama3-8b-8192"]
+    assert info["settings"]["rate_limits"]["max_requests_per_minute"] == 30
+    assert info["settings"]["api_key"] == "<configured>"
+
+
+@pytest.mark.asyncio
 async def test_gemini_adapter(config):
     adapter = GeminiAdapter(config)
     json_mock = {
@@ -86,6 +130,23 @@ async def test_gemini_adapter_uses_configured_model(config):
         assert resp.content == "Gemini 2"
         assert resp.model_name == "gemini-2.0-flash"
         assert "gemini-2.0-flash" in str(route.calls.last.request.url)
+
+
+@pytest.mark.asyncio
+async def test_gemini_describe_includes_models(config):
+    adapter = GeminiAdapter(config)
+
+    with respx.mock:
+        respx.get(url__startswith="https://generativelanguage.googleapis.com").mock(
+            return_value=httpx.Response(
+                200,
+                json={"models": [{"name": "models/gemini-1.5-flash"}]},
+            )
+        )
+        info = await adapter.describe()
+
+    assert info["provider_id"] == "gemini"
+    assert info["details"]["models"] == ["gemini-1.5-flash"]
 
 
 @pytest.mark.asyncio
@@ -128,3 +189,20 @@ async def test_nvidia_adapter_uses_configured_model(config):
         assert resp.model_name == "meta/llama-3.3-70b-instruct"
         assert route.calls.last.request.content is not None
         assert b"meta/llama-3.3-70b-instruct" in route.calls.last.request.content
+
+
+@pytest.mark.asyncio
+async def test_nvidia_describe_includes_models(config):
+    adapter = NvidiaAdapter(config)
+
+    with respx.mock:
+        respx.get("https://integrate.api.nvidia.com/v1/models").mock(
+            return_value=httpx.Response(
+                200,
+                json={"data": [{"id": "meta/llama-3.1-70b-instruct"}]},
+            )
+        )
+        info = await adapter.describe()
+
+    assert info["provider_id"] == "nvidia"
+    assert info["details"]["models"] == ["meta/llama-3.1-70b-instruct"]

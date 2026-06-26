@@ -10,18 +10,20 @@ from botocore.config import Config as BotoConfig  # pyright: ignore[reportMissin
 from botocore.exceptions import BotoCoreError, ClientError  # pyright: ignore[reportMissingImports]
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeDataNotFoundError
-from finpipe.core.interfaces import IOptionsProvider
+from finpipe.core.interfaces import IOptionsProvider, IProviderDescribe
 from finpipe.core.models import OptionChain, OptionContract
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
+
+from finpipe.providers.descriptor import provider_descriptor
 
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.massive.com"
 
 
-class MassiveOptionsAdapter(IOptionsProvider):
+class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.massive
@@ -36,6 +38,21 @@ class MassiveOptionsAdapter(IOptionsProvider):
             "MASSIVE_S3_ENDPOINT", "https://files.massive.com"
         )
         self._s3_bucket = self._provider_config.s3_bucket or "flatfiles"
+
+    async def describe(self) -> dict[str, Any]:
+        cfg = self._provider_config
+        return provider_descriptor(
+            provider_id="massive",
+            capability="options",
+            provider_config=cfg,
+            configured=bool(self._api_key),
+            details={
+                "api_base_url": self._base_url,
+                "s3_endpoint": self._s3_endpoint,
+                "s3_bucket": self._s3_bucket,
+                "s3_configured": bool(cfg.access_key_id and cfg.secret_access_key),
+            },
+        )
 
     @property
     def api_key(self) -> str | None:

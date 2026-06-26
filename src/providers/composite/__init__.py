@@ -258,8 +258,17 @@ class CompositeOptionsService:
 
 
 class CompositeMacroService:
-    def __init__(self, config: FinpipeConfig) -> None:
+    def __init__(self, config: FinpipeConfig, *, fred: Any) -> None:
         self._config = config
+        self._fred = fred
+
+    async def get_macro_series(
+        self,
+        series_id: str,
+        start_date: date,
+        end_date: date,
+    ) -> pl.DataFrame | pd.DataFrame:
+        return await self._fred.get_macro_series(series_id, start_date, end_date)
 
 
 class CompositeIntelService:
@@ -308,8 +317,3 @@ class CompositeScreenerService:
 
     async def run_tradingview(self, criteria: dict[str, Any]) -> list[str]:
         return await self._screener.run_tradingview(criteria)
-
-
-class CompositeLlmService:
-    def __init__(self, config: FinpipeConfig) -> None:
-        self._config = config

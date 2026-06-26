@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from finpipe.catalog.models import HealthProbeCatalogEntry, ProviderCatalogEntry
+from finpipe.catalog.models import (
+    CapabilityCatalogEntry,
+    HealthProbeCatalogEntry,
+    ProviderCatalogEntry,
+)
 
 _PROBE_ACTIONS: dict[str, str] = {
     "equity.yahoo": "Fetch metadata for health.probe_symbol (default SPY)",
@@ -15,10 +19,61 @@ _PROBE_ACTIONS: dict[str, str] = {
     "screener.yahoo_predefined": "Call Yahoo day_gainers predefined screener (limit 5)",
     "screener.finviz": "Call Finviz ta_topgainers filter",
     "screener.tradingview": "Call TradingView scanner with limit=1",
-    "llm.groq": "Call Groq models.list API",
-    "llm.gemini": "Call Gemini models.list API",
-    "llm.nvidia": "Call NVIDIA NIM models.list API",
+    "llm.groq": "Call Groq models.list API via describe()",
+    "llm.gemini": "Call Gemini models.list API via describe()",
+    "llm.nvidia": "Call NVIDIA NIM models.list API via describe()",
 }
+
+CAPABILITY_CATALOG: tuple[CapabilityCatalogEntry, ...] = (
+    CapabilityCatalogEntry(
+        capability="equity",
+        label="Equity market data",
+        description="Historical OHLCV, spot prices, company metadata, and financial statements.",
+        client_facade='client.catalog.capability("equity")',
+        protocols=("IHistoricalPriceProvider", "IMetadataProvider"),
+        primary_routing_key="equity_primary",
+        fallback_routing_key="equity_fallback",
+    ),
+    CapabilityCatalogEntry(
+        capability="options",
+        label="Options market data",
+        description="Options chains and snapshot quotes.",
+        client_facade='client.catalog.capability("options")',
+        protocols=("IOptionsProvider",),
+        primary_routing_key="options_primary",
+        fallback_routing_key="options_fallback",
+    ),
+    CapabilityCatalogEntry(
+        capability="macro",
+        label="Macroeconomic series",
+        description="Federal Reserve and other macro time series.",
+        client_facade='client.catalog.capability("macro")',
+        protocols=("IMacroProvider",),
+    ),
+    CapabilityCatalogEntry(
+        capability="intel",
+        label="Market intelligence",
+        description="News headlines, social posts, and sentiment scores.",
+        client_facade='client.catalog.capability("intel")',
+        protocols=("IMarketIntelProvider",),
+    ),
+    CapabilityCatalogEntry(
+        capability="screener",
+        label="Equity screeners",
+        description="Trending, predefined, fundamental, and technical screeners.",
+        client_facade='client.catalog.capability("screener")',
+        protocols=("IScreenerProvider",),
+    ),
+    CapabilityCatalogEntry(
+        capability="llm",
+        label="Large language models",
+        description="Text generation via Groq, Gemini, and NVIDIA NIM.",
+        client_facade='client.catalog.capability("llm")',
+        protocols=("ILLMProvider",),
+        primary_routing_key="llm_primary",
+        fallback_routing_key="llm_fallback",
+    ),
+)
 
 PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
     ProviderCatalogEntry(
@@ -31,7 +86,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         ),
         returns="TickerMetadata, DataFrame (OHLCV), float spot price, dict financials",
         settings_path="providers.yahoo",
-        api_surface="client.equity.* (routed via routing.equity_primary/fallback)",
+        api_surface='client.catalog.capability("equity").* (routed via routing.equity_primary/fallback)',
         health_probe_key="equity.yahoo",
     ),
     ProviderCatalogEntry(
@@ -41,7 +96,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Options chain and snapshot data via yfinance.",
         returns="OptionChain, DataFrame options snapshot",
         settings_path="providers.yahoo",
-        api_surface="client.options.* / client.equity.get_options_chain",
+        api_surface='client.catalog.capability("options").* / client.catalog.capability("equity").get_options_chain',
         health_probe_key="options.yahoo",
     ),
     ProviderCatalogEntry(
@@ -51,7 +106,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="REST fallback for daily bars and company overview.",
         returns="TickerMetadata, DataFrame (OHLCV), float spot price",
         settings_path="providers.alpha_vantage",
-        api_surface="client.equity.* (routing.equity_fallback)",
+        api_surface='client.catalog.capability("equity").* (routing.equity_fallback)',
         health_probe_key="equity.alpha_vantage",
     ),
     ProviderCatalogEntry(
@@ -61,7 +116,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Primary options chain, snapshots, historical aggs, and S3 flatfiles.",
         returns="OptionChain, DataFrame snapshot, list contract dicts",
         settings_path="providers.massive",
-        api_surface="client.options.*",
+        api_surface='client.catalog.capability("options").*',
         health_probe_key="options.massive",
     ),
     ProviderCatalogEntry(
@@ -71,7 +126,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Federal Reserve economic time series (e.g. DGS10 risk-free rate).",
         returns="DataFrame macro series",
         settings_path="providers.fred",
-        api_surface="client.fred.get_macro_series / client.macro.*",
+        api_surface='client.catalog.capability("macro").provider("fred").get_macro_series / client.catalog.capability("macro").*',
         health_probe_key="macro.fred",
     ),
     ProviderCatalogEntry(
@@ -81,7 +136,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Ticker or market news headlines from Google News RSS.",
         returns="list[NewsArticle]",
         settings_path="providers.sentiment.sources.google_news",
-        api_surface="client.intel.get_news",
+        api_surface='client.catalog.capability("intel").get_news',
         health_probe_key="intel.google_news",
     ),
     ProviderCatalogEntry(
@@ -91,7 +146,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Social microblog messages and sentiment for a symbol.",
         returns="list[SocialPost] (kind=microblog)",
         settings_path="providers.sentiment.sources.stocktwits",
-        api_surface="client.intel.get_social_posts(kind=microblog)",
+        api_surface='client.catalog.capability("intel").get_social_posts(kind=microblog)',
         health_probe_key="intel.stocktwits",
     ),
     ProviderCatalogEntry(
@@ -101,7 +156,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Forum posts from finance subreddits for a symbol.",
         returns="list[SocialPost] (kind=forum)",
         settings_path="providers.sentiment.sources.reddit",
-        api_surface="client.intel.get_social_posts(kind=forum)",
+        api_surface='client.catalog.capability("intel").get_social_posts(kind=forum)',
         health_probe_key="intel.reddit",
     ),
     ProviderCatalogEntry(
@@ -111,7 +166,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Currently trending US equity tickers from Yahoo Finance HTTP screener.",
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.yahoo_trending",
-        api_surface="client.screener.get_trending",
+        api_surface='client.catalog.capability("screener").get_trending',
         health_probe_key="screener.yahoo_trending",
     ),
     ProviderCatalogEntry(
@@ -121,7 +176,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Saved Yahoo screeners (day gainers/losers, most actives).",
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.yahoo_predefined",
-        api_surface="client.screener.get_predefined",
+        api_surface='client.catalog.capability("screener").get_predefined',
         health_probe_key="screener.yahoo_predefined",
     ),
     ProviderCatalogEntry(
@@ -131,7 +186,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Fundamental/technical Finviz screener filter lists.",
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.finviz",
-        api_surface="client.screener.get_fundamental",
+        api_surface='client.catalog.capability("screener").get_fundamental',
         health_probe_key="screener.finviz",
     ),
     ProviderCatalogEntry(
@@ -141,7 +196,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="TradingView America scanner POST with custom criteria.",
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.tradingview",
-        api_surface="client.screener.run_tradingview",
+        api_surface='client.catalog.capability("screener").run_tradingview',
         health_probe_key="screener.tradingview",
     ),
     ProviderCatalogEntry(
@@ -149,9 +204,9 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         capability="llm",
         label="Groq",
         description="Groq chat completions API.",
-        returns="LLMResponse text; list[str] model ids",
+        returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.groq",
-        api_surface="client.groq.generate_response / client.llm.*",
+        api_surface='client.catalog.capability("llm").provider("groq").generate_response / .describe()',
         health_probe_key="llm.groq",
     ),
     ProviderCatalogEntry(
@@ -159,9 +214,9 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         capability="llm",
         label="Gemini",
         description="Google Gemini generateContent API.",
-        returns="LLMResponse text; list[str] model ids",
+        returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.gemini",
-        api_surface="client.gemini.generate_response / client.llm.*",
+        api_surface='client.catalog.capability("llm").provider("gemini").generate_response / .describe()',
         health_probe_key="llm.gemini",
     ),
     ProviderCatalogEntry(
@@ -169,9 +224,9 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         capability="llm",
         label="NVIDIA NIM",
         description="NVIDIA build.nvidia.com chat completions API (OpenAI-compatible).",
-        returns="LLMResponse text; list[str] model ids",
+        returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.nvidia",
-        api_surface="client.nvidia.generate_response / client.llm.*",
+        api_surface='client.catalog.capability("llm").provider("nvidia").generate_response / .describe()',
         health_probe_key="llm.nvidia",
     ),
 )

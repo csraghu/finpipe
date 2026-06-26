@@ -7,6 +7,7 @@ from finpipe.core.config import (
     resolve_screener_tradingview_source,
 )
 from finpipe.core.exceptions import FinpipeProviderDownError
+from finpipe.core.interfaces import IProviderDescribe
 from finpipe.core.screener_parsers import (
     parse_finviz_screener_tickers,
     parse_tradingview_scan_symbols,
@@ -16,6 +17,8 @@ from finpipe.core.screener_parsers import (
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
+
+from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,7 @@ _TRADINGVIEW_SCAN_URL = "https://scanner.tradingview.com/america/scan"
 _DEFAULT_PREDEFINED_LIMIT = 50
 
 
-class ScreenerAdapter:
+class ScreenerAdapter(IProviderDescribe):
     """Unified screener adapter dispatching to Yahoo, Finviz, and TradingView sources."""
 
     def __init__(self, config: FinpipeConfig):
@@ -42,6 +45,18 @@ class ScreenerAdapter:
             )
             for name, source in self._source_configs().items()
         }
+
+    async def describe(self) -> dict[str, Any]:
+        sources = {
+            name: settings_snapshot(source)
+            for name, source in self._source_configs().items()
+        }
+        return provider_descriptor(
+            provider_id="screener",
+            capability="screener",
+            provider_config=self._provider_config,
+            details={"sources": sources},
+        )
 
     def _source_configs(self) -> dict[str, ScreenerSourceConfig]:
         sources = self._provider_config.sources

@@ -2,19 +2,22 @@ import logging
 from typing import Any
 
 from finpipe.core.config import FinpipeConfig
-from finpipe.core.interfaces import IScreenerProvider
+from finpipe.core.interfaces import IScreenerProvider, IProviderDescribe
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.providers.screener import ScreenerAdapter
 
 logger = logging.getLogger(__name__)
 
 
-class TradingViewAdapter(IScreenerProvider):
+class TradingViewAdapter(IScreenerProvider, IProviderDescribe):
     """Backward-compatible TradingView screener; delegates to unified ScreenerAdapter."""
 
     def __init__(self, config: FinpipeConfig, *, screener: ScreenerAdapter | None = None):
         self._config = config
         self._screener = screener or ScreenerAdapter(config)
+
+    async def describe(self) -> dict[str, Any]:
+        return await self._screener.describe()
 
     async def close(self) -> None:
         if self._screener is not None:

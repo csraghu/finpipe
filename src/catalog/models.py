@@ -12,6 +12,106 @@ CapabilityName = Literal[
     "llm",
 ]
 
+CAPABILITY_GROUPS: tuple[CapabilityName, ...] = (
+    "equity",
+    "options",
+    "macro",
+    "intel",
+    "screener",
+    "llm",
+)
+
+
+@dataclass(frozen=True)
+class CapabilityCatalogEntry:
+    """Static description of one finpipe capability facade."""
+
+    capability: CapabilityName
+    label: str
+    description: str
+    client_facade: str
+    protocols: tuple[str, ...]
+    primary_routing_key: str | None = None
+    fallback_routing_key: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "capability": self.capability,
+            "label": self.label,
+            "description": self.description,
+            "client_facade": self.client_facade,
+            "protocols": list(self.protocols),
+        }
+        if self.primary_routing_key is not None:
+            payload["primary_routing_key"] = self.primary_routing_key
+        if self.fallback_routing_key is not None:
+            payload["fallback_routing_key"] = self.fallback_routing_key
+        return payload
+
+
+@dataclass(frozen=True)
+class CapabilityCatalogEntryResolved:
+    """Capability catalog row merged with the active ``FinpipeConfig``."""
+
+    capability: CapabilityName
+    label: str
+    description: str
+    client_facade: str
+    protocols: tuple[str, ...]
+    primary_routing_key: str | None
+    fallback_routing_key: str | None
+    primary_provider: str | None
+    fallback_provider: str | None
+    provider_ids: tuple[str, ...]
+    provider_count: int
+    client_adapters: tuple[str, ...]
+
+    @classmethod
+    def from_entry(
+        cls,
+        entry: CapabilityCatalogEntry,
+        *,
+        primary_provider: str | None,
+        fallback_provider: str | None,
+        provider_ids: tuple[str, ...],
+        client_adapters: tuple[str, ...],
+    ) -> CapabilityCatalogEntryResolved:
+        return cls(
+            capability=entry.capability,
+            label=entry.label,
+            description=entry.description,
+            client_facade=entry.client_facade,
+            protocols=entry.protocols,
+            primary_routing_key=entry.primary_routing_key,
+            fallback_routing_key=entry.fallback_routing_key,
+            primary_provider=primary_provider,
+            fallback_provider=fallback_provider,
+            provider_ids=provider_ids,
+            provider_count=len(provider_ids),
+            client_adapters=client_adapters,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "capability": self.capability,
+            "label": self.label,
+            "description": self.description,
+            "client_facade": self.client_facade,
+            "protocols": list(self.protocols),
+            "provider_ids": list(self.provider_ids),
+            "provider_count": self.provider_count,
+            "client_adapters": list(self.client_adapters),
+        }
+        if self.primary_routing_key is not None:
+            payload["primary_routing_key"] = self.primary_routing_key
+        if self.fallback_routing_key is not None:
+            payload["fallback_routing_key"] = self.fallback_routing_key
+        if self.primary_provider is not None:
+            payload["primary_provider"] = self.primary_provider
+        if self.fallback_provider is not None:
+            payload["fallback_provider"] = self.fallback_provider
+        return payload
+
 
 @dataclass(frozen=True)
 class ProviderCatalogEntry:

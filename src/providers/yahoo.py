@@ -10,7 +10,12 @@ import pybreaker
 import yfinance as yf
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeProviderDownError
-from finpipe.core.interfaces import IHistoricalPriceProvider, IMetadataProvider, IOptionsProvider
+from finpipe.core.interfaces import (
+    IHistoricalPriceProvider,
+    IMetadataProvider,
+    IOptionsProvider,
+    IProviderDescribe,
+)
 from finpipe.core.models import OptionChain, OptionContract, TickerMetadata
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
@@ -23,10 +28,14 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from finpipe.providers.descriptor import provider_descriptor
+
 logger = logging.getLogger(__name__)
 
 
-class YahooFinanceAdapter(IHistoricalPriceProvider, IMetadataProvider, IOptionsProvider):
+class YahooFinanceAdapter(
+    IHistoricalPriceProvider, IMetadataProvider, IOptionsProvider, IProviderDescribe
+):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._rate_limits = config.providers.yahoo.rate_limits
@@ -41,6 +50,16 @@ class YahooFinanceAdapter(IHistoricalPriceProvider, IMetadataProvider, IOptionsP
             state_storage=pybreaker.CircuitMemoryStorage(pybreaker.STATE_CLOSED),
         )
         self._cache = create_cache_backend(config.cache)
+
+    async def describe(self) -> dict[str, Any]:
+        cfg = self._config.providers.yahoo
+        return provider_descriptor(
+            provider_id="yahoo",
+            capability=["equity", "options"],
+            provider_config=cfg,
+            configured=True,
+            details={"backend": "yfinance"},
+        )
 
     async def _execute_with_resilience(
         self, func: Callable[..., Any], *args: Any, **kwargs: Any

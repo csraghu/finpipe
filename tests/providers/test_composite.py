@@ -142,7 +142,8 @@ async def test_composite_equity_delegates_options_chain_to_options_service(confi
 @pytest.mark.asyncio
 async def test_client_intel_get_news(config):
     async with Client(config) as client:
-        client.sentiment.get_news = AsyncMock(
+        sentiment = client._registry.get("sentiment")
+        sentiment.get_news = AsyncMock(
             return_value=[
                 NewsArticle(
                     title="Headline",
@@ -151,7 +152,7 @@ async def test_client_intel_get_news(config):
                 )
             ]
         )
-        articles = await client.intel.get_news("AAPL", limit=5)
+        articles = await client.catalog.capability("intel").get_news("AAPL", limit=5)
 
     assert len(articles) == 1
     assert articles[0].title == "Headline"

@@ -2,66 +2,55 @@ import logging
 from typing import Any, Self
 
 from finpipe.catalog import CatalogService
+from finpipe.catalog.adapter_registry import AdapterRegistry
 from finpipe.core.config import FinpipeConfig
 from finpipe.health import HealthService
-from finpipe.providers.alpha_vantage import AlphaVantageAdapter
 from finpipe.providers.composite import (
     CompositeEquityService,
     CompositeIntelService,
-    CompositeLlmService,
     CompositeMacroService,
     CompositeOptionsService,
     CompositeScreenerService,
 )
-from finpipe.providers.fred import FredAdapter
-from finpipe.providers.gemini import GeminiAdapter
-from finpipe.providers.groq import GroqAdapter
-from finpipe.providers.nvidia import NvidiaAdapter
-from finpipe.providers.massive import MassiveOptionsAdapter
-from finpipe.providers.screener import ScreenerAdapter
-from finpipe.providers.sentiment import NewsSentimentAdapter
-from finpipe.providers.tradingview import TradingViewAdapter
-from finpipe.providers.yahoo import YahooFinanceAdapter
 
 logger = logging.getLogger(__name__)
 
 
 class Client:
-    """Top-level facade. Prefer capability services (equity, options, intel, …)."""
+    """Top-level facade. Public I/O is via ``client.catalog`` capability handles."""
 
     def __init__(self, config: FinpipeConfig | None = None):
         self.config = config or FinpipeConfig.load()
         self._ensure_registrations()
 
-        self.yahoo = YahooFinanceAdapter(self.config)
-        self.alpha_vantage = AlphaVantageAdapter(self.config)
-        self.massive = MassiveOptionsAdapter(self.config)
-        self.fred = FredAdapter(self.config)
-        self._screener_adapter = ScreenerAdapter(self.config)
-        self.tradingview = TradingViewAdapter(self.config, screener=self._screener_adapter)
-        self.sentiment = NewsSentimentAdapter(self.config)
-        self.groq = GroqAdapter(self.config)
-        self.gemini = GeminiAdapter(self.config)
-        self.nvidia = NvidiaAdapter(self.config)
+        registry = AdapterRegistry(self.config)
+        self._registry = registry
 
-        equity_adapters = {
-            "yahoo": self.yahoo,
-            "alpha_vantage": self.alpha_vantage,
-        }
-        options_adapters = {
-            "massive": self.massive,
-            "yahoo": self.yahoo,
-        }
-        self.options = CompositeOptionsService(self.config, adapters=options_adapters)
-        self.equity = CompositeEquityService(
+        options = CompositeOptionsService(
             self.config,
-            adapters=equity_adapters,
-            options=self.options,
+            adapters=registry.options_adapters(),
         )
-        self.macro = CompositeMacroService(self.config)
-        self.intel = CompositeIntelService(self.config, sentiment=self.sentiment)
-        self.screener = CompositeScreenerService(self.config, screener=self._screener_adapter)
-        self.llm = CompositeLlmService(self.config)
+        self._composites = {
+            "equity": CompositeEquityService(
+                self.config,
+                adapters=registry.equity_adapters(),
+                options=options,
+            ),
+            "options": options,
+            "macro": CompositeMacroService(
+                self.config,
+                fred=registry.get("fred"),
+            ),
+            "intel": CompositeIntelService(
+                self.config,
+                sentiment=registry.get("sentiment"),
+            ),
+            "screener": CompositeScreenerService(
+                self.config,
+                screener=registry.get("screener"),
+            ),
+        }
+
         self.catalog = CatalogService(self)
         self.health = HealthService(self)
 
@@ -70,14 +59,7 @@ class Client:
         import finpipe.providers  # noqa: F401 — side-effect registration
 
     async def close(self) -> None:
-        await self.alpha_vantage.close()
-        await self.massive.close()
-        await self.fred.close()
-        await self._screener_adapter.close()
-        await self.sentiment.close()
-        await self.groq.close()
-        await self.gemini.close()
-        await self.nvidia.close()
+        await self._registry.close()
         logger.info("Finpipe client gracefully shut down.")
 
     async def __aenter__(self) -> Self:

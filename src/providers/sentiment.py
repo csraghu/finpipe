@@ -3,18 +3,21 @@ import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+from typing import Any
 
 from finpipe.core.config import FinpipeConfig, SentimentSourceConfig
-from finpipe.core.interfaces import IMarketIntelProvider
+from finpipe.core.interfaces import IMarketIntelProvider, IProviderDescribe
 from finpipe.core.models import NewsArticle, SentimentScore, SocialPost, SocialPostKind
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
 
+from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
+
 logger = logging.getLogger(__name__)
 
 
-class NewsSentimentAdapter(IMarketIntelProvider):
+class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.sentiment
@@ -25,6 +28,18 @@ class NewsSentimentAdapter(IMarketIntelProvider):
             )
             for name, source in self._source_configs().items()
         }
+
+    async def describe(self) -> dict[str, Any]:
+        sources = {
+            name: settings_snapshot(source)
+            for name, source in self._source_configs().items()
+        }
+        return provider_descriptor(
+            provider_id="sentiment",
+            capability="intel",
+            provider_config=self._provider_config,
+            details={"sources": sources},
+        )
 
     def _source_configs(self) -> dict[str, SentimentSourceConfig]:
         sources = self._provider_config.sources

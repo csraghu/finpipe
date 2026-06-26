@@ -41,18 +41,25 @@ async def test_check_all_runs_configured_probes():
             }
         }
     )
-    client = MagicMock()
-    client.config = config
-    client.yahoo.get_metadata = AsyncMock(
+    yahoo_provider = MagicMock()
+    yahoo_provider.get_metadata = AsyncMock(
         return_value=TickerMetadata(symbol="SPY", short_name="SPDR")
     )
+    equity_capability = MagicMock()
+    equity_capability.provider = MagicMock(return_value=yahoo_provider)
+    catalog = MagicMock()
+    catalog.capability = MagicMock(return_value=equity_capability)
+
+    client = MagicMock()
+    client.config = config
+    client.catalog = catalog
 
     service = HealthService(client)
     report = await service.check_all()
 
     assert report.all_connected
     assert report.results["equity.yahoo"].status == "connected"
-    client.yahoo.get_metadata.assert_awaited_once_with("SPY")
+    yahoo_provider.get_metadata.assert_awaited_once_with("SPY")
 
 
 @pytest.mark.asyncio
@@ -65,9 +72,14 @@ async def test_check_marks_degraded_when_probe_returns_message():
             }
         }
     )
+    screener_capability = MagicMock()
+    screener_capability.get_trending = AsyncMock(return_value=[])
+    catalog = MagicMock()
+    catalog.capability = MagicMock(return_value=screener_capability)
+
     client = MagicMock()
     client.config = config
-    client.screener.get_trending = AsyncMock(return_value=[])
+    client.catalog = catalog
 
     service = HealthService(client)
     result = await service.check("screener.yahoo_trending")

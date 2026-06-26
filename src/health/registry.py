@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from finpipe.core.config import FinpipeConfig, HealthConfig, ProviderGroupConfig
 
+SUPPORTED_LLM_PROVIDERS: tuple[str, ...] = ("groq", "gemini", "nvidia")
+
 DEFAULT_PROBE_KEYS: tuple[str, ...] = (
     "equity.yahoo",
     "equity.alpha_vantage",

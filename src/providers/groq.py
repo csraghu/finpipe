@@ -3,16 +3,17 @@ from typing import Any
 
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeProviderDownError
-from finpipe.core.interfaces import ILLMProvider
+from finpipe.core.interfaces import ILLMProvider, IProviderDescribe
 from finpipe.core.models import LLMResponse
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
+from finpipe.providers.descriptor import provider_descriptor
 
 logger = logging.getLogger(__name__)
 
 
-class GroqAdapter(ILLMProvider):
+class GroqAdapter(ILLMProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.groq
@@ -27,7 +28,7 @@ class GroqAdapter(ILLMProvider):
     async def close(self) -> None:
         await self._client.close()
 
-    async def list_models(self) -> list[str]:
+    async def _remote_models(self) -> list[str]:
         if not self._api_key:
             return []
         response = await self._client.request(
@@ -37,6 +38,23 @@ class GroqAdapter(ILLMProvider):
         )
         data = response.json()
         return [model["id"] for model in data.get("data", []) if model.get("id")]
+
+    async def describe(self) -> dict[str, Any]:
+        models = await self._remote_models()
+        cfg = self._provider_config
+        return provider_descriptor(
+            provider_id="groq",
+            capability="llm",
+            provider_config=cfg,
+            configured=bool(self._api_key),
+            details={
+                "default_model": cfg.model,
+                "temperature": cfg.temperature,
+                "max_tokens": cfg.max_tokens,
+                "use_dynamic_model": cfg.use_dynamic_model,
+                "models": models,
+            },
+        )
 
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any

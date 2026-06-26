@@ -1,19 +1,22 @@
 import logging
 from datetime import date
+from typing import Any
 
 import pandas as pd
 import polars as pl
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeDataNotFoundError
-from finpipe.core.interfaces import IMacroProvider
+from finpipe.core.interfaces import IMacroProvider, IProviderDescribe
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
 
+from finpipe.providers.descriptor import provider_descriptor
+
 logger = logging.getLogger(__name__)
 
 
-class FredAdapter(IMacroProvider):
+class FredAdapter(IMacroProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.fred
@@ -24,6 +27,16 @@ class FredAdapter(IMacroProvider):
             "fred", self._provider_config.rate_limits, cache_config=config.cache
         )
         self._base_url = "https://api.stlouisfed.org/fred"
+
+    async def describe(self) -> dict[str, Any]:
+        cfg = self._provider_config
+        return provider_descriptor(
+            provider_id="fred",
+            capability="macro",
+            provider_config=cfg,
+            configured=bool(self._api_key),
+            details={"api_base_url": self._base_url},
+        )
 
     async def close(self) -> None:
         await self._client.close()

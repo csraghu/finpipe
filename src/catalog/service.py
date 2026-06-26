@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING
 
+from finpipe.catalog.handles import CapabilityHandle, ProviderRef
 from finpipe.catalog.models import (
+    CAPABILITY_GROUPS,
+    CapabilityName,
     HealthProbeCatalogEntryResolved,
-    ProviderCatalogEntryResolved,
+    ProviderCatalogEntry,
 )
 from finpipe.catalog.registry import PROBE_CATALOG, PROVIDER_CATALOG
 from finpipe.health.registry import is_probe_provider_enabled, resolve_probe_keys
@@ -12,47 +15,45 @@ from finpipe.health.registry import is_probe_provider_enabled, resolve_probe_key
 if TYPE_CHECKING:
     from finpipe.client import Client
 
-CapabilityFilter = Literal["equity", "options", "macro", "intel", "screener", "llm"] | None
-
 
 class CatalogService:
-    """Read-only provider and health-probe inventory (no external HTTP)."""
+    """Read-only capability/provider inventory and health probe catalog."""
 
     def __init__(self, client: Client) -> None:
         self._client = client
         self._config = client.config
 
-    def list_providers(
-        self,
-        *,
-        capability: CapabilityFilter = None,
-    ) -> list[ProviderCatalogEntryResolved]:
-        active_probe_keys = set(resolve_probe_keys(self._config))
-        health = self._config.health
-        explicit_probes = bool(health.probes)
+    def capabilities(self) -> list[CapabilityHandle]:
+        """Return all capability handles sorted alphabetically by id."""
+        return sorted(
+            (CapabilityHandle(self._client, name) for name in CAPABILITY_GROUPS),
+            key=lambda handle: handle.id,
+        )
 
-        rows: list[ProviderCatalogEntryResolved] = []
+    def capability(self, name: CapabilityName | str) -> CapabilityHandle:
+        """Return one capability handle by id."""
+        normalized = str(name).strip().lower()
+        if normalized not in CAPABILITY_GROUPS:
+            valid = ", ".join(CAPABILITY_GROUPS)
+            raise KeyError(f"Unknown capability {name!r}. Valid capabilities: {valid}")
+        return CapabilityHandle(self._client, normalized)  # type: ignore[arg-type]
+
+    def _provider_enabled(self, entry: ProviderCatalogEntry) -> bool:
+        probe_key = entry.health_probe_key
+        if probe_key is None:
+            return True
+        return is_probe_provider_enabled(self._config.providers, probe_key)
+
+    def _provider_refs_for(self, capability: CapabilityName) -> list[ProviderRef]:
+        rows: list[ProviderRef] = []
         for entry in PROVIDER_CATALOG:
-            if capability is not None and entry.capability != capability:
+            if entry.capability != capability:
                 continue
-            probe_key = entry.health_probe_key
-            provider_enabled = is_probe_provider_enabled(self._config.providers, probe_key)
-            health_probe_enabled: bool | None = None
-            health_probe_would_run: bool | None = None
-            if probe_key is not None:
-                if explicit_probes:
-                    toggle = health.probes.get(probe_key)
-                    health_probe_enabled = toggle.enabled if toggle is not None else False
-                else:
-                    health_probe_enabled = provider_enabled
-                health_probe_would_run = probe_key in active_probe_keys
-
             rows.append(
-                ProviderCatalogEntryResolved.from_entry(
+                ProviderRef(
+                    self._client,
                     entry,
-                    provider_enabled=provider_enabled,
-                    health_probe_enabled=health_probe_enabled,
-                    health_probe_would_run=health_probe_would_run,
+                    enabled=self._provider_enabled(entry),
                 )
             )
         return rows
@@ -80,6 +81,6 @@ class CatalogService:
             )
         return rows
 
-    def health_config_template(self) -> dict[str, Any]:
+    def health_config_template(self) -> dict[str, dict[str, bool]]:
         """Suggested ``health.probes`` block for finpipe.settings.json."""
         return {probe.key: {"enabled": probe.would_run} for probe in self.list_health_probes()}

@@ -1,6 +1,6 @@
 # finpipe API reference & application guide
 
-This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.3.1.
+This document is the **application-facing reference** for finpipe: installation, configuration, secrets, and the public API surface as implemented in v0.5.0.
 
 For internal design (rate limiting, transport choices, migration from aksh), see [architecture.md](./architecture.md).
 
@@ -73,12 +73,13 @@ async def main() -> None:
         end = date.today()
         start = end - timedelta(days=30)
 
-        # Macro (FRED)
-        cpi = await client.fred.get_macro_series("CPIAUCSL", start, end)
+        # Macro (FRED) — routed capability I/O
+        cpi = await client.catalog.capability("macro").get_macro_series("CPIAUCSL", start, end)
 
-        # Equity (Yahoo)
-        prices = await client.yahoo.get_historical_prices("AAPL", start, end)
-        meta = await client.yahoo.get_metadata("AAPL")
+        # Equity (Yahoo) — explicit provider I/O
+        equity = client.catalog.capability("equity")
+        prices = await equity.provider("yahoo").get_historical_prices("AAPL", start, end)
+        meta = await equity.provider("yahoo").get_metadata("AAPL")
 
         print(len(cpi), meta.short_name)
 
@@ -201,7 +202,7 @@ When `cache_type` is `"sqlite"`, learned AIMD rates are stored in the same datab
 
 ### `routing`
 
-Controls which named provider adapters `client.equity`, `client.options`, and `client.intel` call first, and which to try on failure. Intel routes through the sentiment adapter (`providers.sentiment` sources).
+Controls which named provider adapters routed capabilities call first, and which to try on failure. Intel routes through the sentiment adapter (`providers.sentiment` sources).
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -288,7 +289,7 @@ Secrets are read from the **process environment** at config/adapter initializati
 
 **No API key required:** Yahoo, TradingView, sentiment sources (Google News, StockTwits, Reddit).
 
-> **Current limitation (v0.2.0):** `Client()` eagerly constructs **all** provider adapters. Even if you only call `client.yahoo`, you must still set env vars for FRED, Alpha Vantage, Massive, Groq, and Gemini unless you change finpipe to lazy-init adapters. Plan your `.env` accordingly.
+> **Note (v0.5.0):** `Client()` eagerly constructs all provider adapters via an internal registry. All public I/O goes through `client.catalog` capability and provider handles.
 
 ### finpipe configuration overrides
 
@@ -337,14 +338,32 @@ finally:
 
 `close()` shuts down HTTP clients for: Alpha Vantage, Massive, FRED, TradingView, sentiment, Groq, Gemini. Yahoo uses yfinance (no HTTP session to close).
 
-### Two API tiers
+### Public API (v0.5.0)
 
-| Tier | Access | Stability | Status |
-|------|--------|-----------|--------|
-| **Application API** | `client.equity`, `.options`, `.intel`, `.macro`, `.screener`, `.llm` | Semver-stable (target) | **Implemented** for equity, options, intel — routes via `routing.*_primary` / `*_fallback` |
-| **Provider API** | `client.yahoo`, `.fred`, `.massive`, … | For tests / advanced use | **Implemented** — direct adapter access |
+| Surface | Access | Description |
+|---------|--------|-------------|
+| **`client.catalog`** | Capability and provider handles | **Only public I/O path** — routed composites and explicit provider adapters |
+| **`client.health`** | Health probes | Connectivity checks for catalog providers |
+| **`client.dump_settings()`** | Config introspection | Resolved settings snapshot |
 
-**Applications should call capability facades** (`client.equity.get_metadata`, `client.options.get_options_chain`, `client.intel.get_news`, …). Routing is controlled in `finpipe.settings.json`:
+Legacy direct attributes (`client.yahoo`, `client.equity`, …) were removed in v0.5.0.
+
+**Routed I/O** — call async methods on a capability handle; composites apply primary/fallback routing:
+
+```python
+equity = client.catalog.capability("equity")
+meta = await equity.get_metadata("AAPL")
+chain = await equity.get_options_chain("AAPL")
+```
+
+**Explicit I/O** — call a specific provider within a capability:
+
+```python
+yahoo = client.catalog.capability("equity").provider("yahoo")
+meta = await yahoo.get_metadata("AAPL")
+```
+
+Routing is controlled in `finpipe.settings.json`:
 
 ```json
 {
@@ -365,15 +384,26 @@ On failure, composites try the fallback provider before raising `FinpipeProvider
 from finpipe.core.models import SocialPostKind
 
 async with Client(config) as client:
-    meta = await client.equity.get_metadata("AAPL")
-    chain = await client.equity.get_options_chain("AAPL")
-    snaps = await client.options.fetch_options_snapshot("SPY", limit=50)
-    headlines = await client.intel.get_news("NVDA", limit=10)
-    forum_posts = await client.intel.get_social_posts("TSLA", kind=SocialPostKind.FORUM)
-    sentiment = await client.intel.get_sentiment_score("TSLA")
+    equity = client.catalog.capability("equity")
+    options = client.catalog.capability("options")
+    intel = client.catalog.capability("intel")
+
+    meta = await equity.get_metadata("AAPL")
+    chain = await equity.get_options_chain("AAPL")
+    snaps = await options.fetch_options_snapshot("SPY", limit=50)
+    headlines = await intel.get_news("NVDA", limit=10)
+    forum_posts = await intel.get_social_posts("TSLA", kind=SocialPostKind.FORUM)
+    sentiment = await intel.get_sentiment_score("TSLA")
 ```
 
-Named adapters remain on `Client` for backward compatibility and tests.
+LLM calls use explicit provider refs (no routed composite):
+
+```python
+groq = client.catalog.capability("llm").provider("groq")
+response = await groq.generate_response("Summarize AAPL earnings")
+```
+
+Named provider refs remain addressable per catalog row (e.g. `yahoo` appears twice — equity and options).
 
 ### Concurrent fetches
 
@@ -383,10 +413,12 @@ finpipe throttles per provider namespace (AIMD rate limit + in-flight cap). Your
 import asyncio
 
 async with Client(config) as client:
+    equity = client.catalog.capability("equity")
+    macro = client.catalog.capability("macro")
     results = await asyncio.gather(
-        client.yahoo.get_metadata("AAPL"),
-        client.yahoo.get_metadata("MSFT"),
-        client.fred.get_macro_series("GDP", start, end),
+        equity.provider("yahoo").get_metadata("AAPL"),
+        equity.provider("yahoo").get_metadata("MSFT"),
+        macro.get_macro_series("GDP", start, end),
     )
 ```
 
@@ -455,13 +487,35 @@ Defined in `finpipe.core.interfaces`. All I/O methods are `async def`.
 | `get_social_posts(symbol, *, limit=30, kind=None)` | `list[SocialPost]` — forum/microblog; `kind` filters channel |
 | `get_sentiment_score(symbol)` | `SentimentScore` |
 
-### `IScreenerProvider`
+### `ILLMProvider`
 
 | Method | Returns |
 |--------|---------|
-| `run_screener(criteria: dict)` | `list[str]` (tickers) — legacy TradingView adapter |
+| `generate_response(prompt, model=None, **kwargs)` | `LLMResponse` |
 
-### `client.screener` — unified screener capability
+### `IProviderDescribe`
+
+| Method | Returns |
+|--------|---------|
+| `describe()` | `dict[str, Any]` — JSON-serializable provider metadata (settings, limits, provider-specific `details`) |
+
+Every client adapter implements `describe()`. LLM providers include remote `models` in `details`; intel/screener adapters include per-source settings. Secrets in `settings` are redacted to `"<configured>"`.
+
+```python
+groq_info = await client.catalog.capability("llm").provider("groq").describe()
+# {
+#   "provider_id": "groq",
+#   "capability": "llm",
+#   "enabled": true,
+#   "configured": true,
+#   "settings": { "rate_limits": {...}, "model": "...", ... },
+#   "details": { "default_model": "...", "models": [...], "temperature": 0.3, ... }
+# }
+```
+
+### Screener capability — `client.catalog.capability("screener")`
+
+Routed methods on the screener capability handle:
 
 | Method | Returns |
 |--------|---------|
@@ -508,21 +562,46 @@ When `probes` is empty, all probes for **enabled** providers run. Probe keys use
 | `describe_probes()` | `list[HealthProbeCatalogEntry]` — probe catalog merged with config (no HTTP) |
 | `health_config_template()` | `dict` — suggested `health.probes` JSON block |
 
-### `client.catalog` — provider inventory (no HTTP)
+### `client.catalog` — capability and provider handles
 
-Read-only discovery for building `health.probes` and documentation. Separate from live probes.
+All application I/O goes through catalog handles. Inventory methods require no HTTP.
 
 | Method | Returns |
 |--------|---------|
-| `list_providers(capability=None)` | All providers/sources with labels, return types, settings paths, and health probe linkage |
+| `capabilities()` | `list[CapabilityHandle]` — sorted alphabetically by id |
+| `capability(name)` | `CapabilityHandle` — one capability group |
 | `list_health_probes()` | Same probes as `health.describe_probes()` |
 | `health_config_template()` | Suggested `health.probes` toggles from current config |
+
+Each `CapabilityHandle` exposes:
+
+| Member | Returns |
+|--------|---------|
+| `id` | Capability name (`equity`, `options`, …) |
+| `describe()` | `dict` — static metadata + routing (sync, no HTTP) |
+| `providers()` | `list[ProviderRef]` — all catalog rows for this capability |
+| `provider(provider_id)` | `ProviderRef` — one provider/source row |
+| `routing.primary` / `.fallback` | `ProviderRef \| None` — from routing config |
+| async methods (e.g. `get_metadata`) | Routed composite I/O (not on `llm`) |
+
+Each `ProviderRef` exposes catalog fields (`provider_id`, `capability`, `label`, `enabled`, …), async `describe()`, and delegates adapter methods (e.g. `get_metadata`, `generate_response`).
 
 Example:
 
 ```python
-for row in client.catalog.list_providers(capability="screener"):
-    print(row.health_probe_key, row.returns, row.health_probe_would_run)
+for cap in client.catalog.capabilities():
+    print(cap.id, cap.describe()["label"])
+
+equity = client.catalog.capability("equity")
+for ref in equity.providers():
+    print(ref.provider_id, ref.enabled, ref.health_probe_key)
+
+yahoo = equity.provider("yahoo")
+meta = await yahoo.get_metadata("AAPL")
+live = await yahoo.describe()
+
+llm_primary = client.catalog.capability("llm").routing.primary
+response = await llm_primary.generate_response("Hello")
 
 template = client.catalog.health_config_template()
 # paste into finpipe.settings.json under "health": { "probes": template }
@@ -542,11 +621,11 @@ template = client.catalog.health_config_template()
 
 ---
 
-## Provider adapters (current API)
+## Provider adapters (via catalog handles)
 
-Methods match the protocols above unless noted.
+Adapters are internal; access them through `client.catalog.capability(...).provider(...)`. Methods match the protocols above unless noted.
 
-### `client.yahoo` — Yahoo Finance
+### Yahoo Finance — `capability("equity"|"options").provider("yahoo")`
 
 | Method | Extra deps | API key |
 |--------|------------|---------|
@@ -559,7 +638,7 @@ Methods match the protocols above unless noted.
 
 Uses `yfinance` behind `asyncio.to_thread`.
 
-### `client.alpha_vantage`
+### Alpha Vantage — `capability("equity").provider("alpha_vantage")`
 
 | Method | API key |
 |--------|---------|
@@ -568,42 +647,39 @@ Uses `yfinance` behind `asyncio.to_thread`.
 | `get_metadata` | `ALPHA_VANTAGE_API_KEY` |
 | `get_financial_statements` | `ALPHA_VANTAGE_API_KEY` |
 
-### `client.fred`
+### FRED — `capability("macro").provider("fred")` or routed `capability("macro").get_macro_series(...)`
 
 | Method | API key |
 |--------|---------|
 | `get_macro_series(series_id, start_date, end_date)` | `FRED_API_KEY` |
 
-### `client.massive`
+### Massive — `capability("options").provider("massive")`
 
 | Method | API key |
 |--------|---------|
 | `get_options_chain` | `MASSIVE_API_KEY` (+ S3 env vars for flatfiles) |
 | `get_options_snapshot` | `MASSIVE_API_KEY` |
 
-### `client.tradingview`
+### TradingView — `capability("screener").provider("tradingview")`
 
 | Method | API key |
 |--------|---------|
 | `run_screener(criteria)` | — |
 
-### `client.sentiment`
+### Sentiment (intel sources) — `capability("intel").*` routed composite
 
-| Method | API key |
-|--------|---------|
-| `get_news(symbol=None, limit=20)` | — |
-| `get_sentiment_score(symbol)` | — |
+Intel provider rows (`google_news`, `stocktwits`, `reddit`) map to the shared sentiment adapter. Use routed capability methods (`get_news`, `get_social_posts`, `get_sentiment_score`) or health probes per source.
 
 Sources configured under `providers.sentiment.sources` (`google_news`, `stocktwits`, `reddit`).
 
-### `client.groq` / `client.gemini`
+### Groq / Gemini / NVIDIA — `capability("llm").provider("groq"|"gemini"|"nvidia")`
 
 | Method | API key |
 |--------|---------|
-| `generate_response(prompt, model=None, **kwargs)` | `GROQ_API_KEY` / `GEMINI_API_KEY` |
-| `list_models()` | `GROQ_API_KEY` / `GEMINI_API_KEY` — used by `client.health` LLM probes |
+| `generate_response(prompt, model=None, **kwargs)` | `GROQ_API_KEY` / `GEMINI_API_KEY` / `NVIDIA_API_KEY` |
+| `describe()` | Same — includes remote model list in `details.models`; used by `client.health` LLM probes |
 
-Default model when `model` is omitted: `providers.groq.model` (`llama3-8b-8192`) or `providers.gemini.model` (`gemini-1.5-flash`). Per-call `model=` overrides the settings default.
+Default model when `model` is omitted: `providers.groq.model` (`llama3-8b-8192`), `providers.gemini.model` (`gemini-1.5-flash`), or `providers.nvidia.model` (`meta/llama-3.1-70b-instruct`). Per-call `model=` overrides the settings default.
 
 ---
 
@@ -667,7 +743,8 @@ from finpipe import (
 
 async with Client() as client:
     try:
-        df = await client.yahoo.get_historical_prices("AAPL", start, end)
+        equity = client.catalog.capability("equity")
+        df = await equity.provider("yahoo").get_historical_prices("AAPL", start, end)
     except FinpipeRateLimitExceededError:
         ...  # backoff or use stale cache (future)
     except FinpipeProviderDownError:
@@ -748,4 +825,4 @@ See [architecture.md](./architecture.md#development-workflow-and-quality-gates) 
 
 ## Version
 
-This document matches finpipe **v0.3.1** with configurable LLM `model` / `temperature` / `max_tokens` in `finpipe.settings.json`, plus abstract capability routing on `client.equity`, `client.options`, and `client.intel`. Prefer capability facades in application code; named adapters (`client.yahoo`, …) are for tests and advanced debugging only.
+This document matches finpipe **v0.5.0** with the catalog-centric public API (`client.catalog` capability and provider handles). Direct `client.yahoo`, `client.equity`, and similar attributes were removed; use routed capability I/O or explicit provider refs.
