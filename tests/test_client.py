@@ -12,3 +12,11 @@ async def test_client_initialization_and_close(config):
         assert client.catalog.capability("screener").provider("tradingview") is not None
 
     assert client._registry.get("alpha_vantage")._client._client.is_closed
+
+
+async def test_client_dump_settings(config):
+    async with Client(config) as client:
+        dumped = client.dump_settings(redact_secrets=True)
+        assert "providers" in dumped
+        json_payload = client.dump_settings_json(redact_secrets=True)
+        assert "providers" in json_payload

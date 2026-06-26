@@ -160,6 +160,15 @@ async def test_provider_ref_describe_shapes_capability(config):
 
 
 @pytest.mark.asyncio
+async def test_catalog_provider_without_health_probe_enabled(config):
+    from finpipe.client import Client
+
+    client = Client(config)
+    tradingview = client.catalog.capability("screener").provider("tradingview")
+    assert tradingview.enabled is True
+
+
+@pytest.mark.asyncio
 async def test_provider_ref_yahoo_equity_vs_options_describe(config):
     from finpipe.client import Client
 

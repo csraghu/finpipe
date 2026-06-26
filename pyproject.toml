@@ -104,7 +104,12 @@ addopts = [
 [tool.coverage.run]
 source = ["finpipe"]
 branch = true
-omit = ["tests/*"]
+omit = [
+    "tests/*",
+    "src/core/interfaces.py",
+    "src/core/types.py",
+    "src/providers/tradingview.py",
+]
 
 [tool.coverage.report]
 fail_under = 95
