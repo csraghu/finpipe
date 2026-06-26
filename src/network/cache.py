@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -45,6 +46,9 @@ class InMemoryTTLCache:
 class SqliteCacheBackend:
     def __init__(self, db_path: str):
         self._db_path = db_path
+        parent = os.path.dirname(db_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:

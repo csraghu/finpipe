@@ -14,6 +14,14 @@ def test_in_memory_cache():
     assert cache.get("key2") is None
 
 
+def test_sqlite_cache_creates_parent_directories(tmp_path):
+    db_path = tmp_path / "nested" / "cache" / "finpipe.db"
+    cache = SqliteCacheBackend(db_path=str(db_path))
+    cache.set("key", "value", ttl_seconds=60)
+    assert cache.get("key") == "value"
+    assert db_path.is_file()
+
+
 def test_sqlite_cache(tmp_path):
     db_path = tmp_path / "test_cache.db"
     cache = SqliteCacheBackend(db_path=str(db_path))
