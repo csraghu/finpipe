@@ -41,6 +41,45 @@ async def test_adapter_registry_close_and_unknown_key(config):
 
 
 @pytest.mark.asyncio
+async def test_adapter_registry_closes_non_singleton_caches(tmp_path):
+    cfg = FinpipeConfig.from_dict(
+        {
+            "cache": {
+                "cache_type": "sqlite",
+                "sqlite_path": str(tmp_path / "adapter_cache.db"),
+                "singleton": False,
+            }
+        }
+    )
+    registry = AdapterRegistry(cfg)
+    groq_cache = registry.get("groq")._cache
+    sentiment_cache = registry.get("sentiment")._cache
+    assert groq_cache is not sentiment_cache
+
+    groq_closed = False
+    sentiment_closed = False
+    original_groq_close = groq_cache.close
+    original_sentiment_close = sentiment_cache.close
+
+    def close_groq() -> None:
+        nonlocal groq_closed
+        groq_closed = True
+        original_groq_close()
+
+    def close_sentiment() -> None:
+        nonlocal sentiment_closed
+        sentiment_closed = True
+        original_sentiment_close()
+
+    groq_cache.close = close_groq  # type: ignore[method-assign]
+    sentiment_cache.close = close_sentiment  # type: ignore[method-assign]
+
+    await registry.close()
+    assert groq_closed
+    assert sentiment_closed
+
+
+@pytest.mark.asyncio
 async def test_call_with_fallback_raises_when_all_fail():
     primary = AsyncMock()
     primary.fail = AsyncMock(side_effect=RuntimeError("down"))

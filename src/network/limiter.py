@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 
 from finpipe._internal.aimd import (
@@ -95,17 +96,18 @@ class AdaptiveRateLimiter:
 
     def _init_db(self) -> None:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS api_rate_limits (
-                    namespace TEXT PRIMARY KEY,
-                    current_rate REAL,
-                    last_updated REAL
-                )
-            """)
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS api_rate_limits (
+                        namespace TEXT PRIMARY KEY,
+                        current_rate REAL,
+                        last_updated REAL
+                    )
+                """)
 
     def _load_rate(self, default_rate: float) -> float:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             row = conn.execute(
                 "SELECT current_rate FROM api_rate_limits WHERE namespace = ?",
                 (self.namespace,),
@@ -115,17 +117,18 @@ class AdaptiveRateLimiter:
         return self._clamp_rate(default_rate)
 
     def _save_rate(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
-                INSERT INTO api_rate_limits (namespace, current_rate, last_updated)
-                VALUES (?, ?, ?)
-                ON CONFLICT(namespace) DO UPDATE SET
-                    current_rate=excluded.current_rate,
-                    last_updated=excluded.last_updated
-                """,
-                (self.namespace, self.rate, time.time()),
-            )
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO api_rate_limits (namespace, current_rate, last_updated)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(namespace) DO UPDATE SET
+                        current_rate=excluded.current_rate,
+                        last_updated=excluded.last_updated
+                    """,
+                    (self.namespace, self.rate, time.time()),
+                )
 
     async def acquire(self) -> None:
         wait_time = 0.0

@@ -570,7 +570,6 @@ wheels = [
 
 [[package]]
 name = "finpipe"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "cachetools" },
@@ -591,6 +590,7 @@ all = [
     { name = "yfinance" },
 ]
 dev = [
+    { name = "aioboto3" },
     { name = "basedpyright" },
     { name = "pre-commit" },
     { name = "pyrefly" },
@@ -618,6 +618,7 @@ yahoo = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "aioboto3" },
     { name = "basedpyright" },
     { name = "pre-commit" },
     { name = "pyrefly" },
@@ -630,12 +631,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aioboto3", marker = "extra == 'dev'", specifier = ">=13.0.0" },
     { name = "aioboto3", marker = "extra == 'massive'", specifier = ">=13.0.0" },
     { name = "basedpyright", marker = "extra == 'dev'", specifier = ">=1.12.0" },
     { name = "cachetools", specifier = ">=5.3.0" },
     { name = "curl-cffi", specifier = ">=0.15.0" },
     { name = "feedparser", marker = "extra == 'sentiment'", specifier = ">=6.0.0" },
-    { name = "finpipe", extras = ["yahoo", "fred", "massive", "sentiment"], marker = "extra == 'all'" },
+    { name = "finpipe", extras = ["fred", "massive", "sentiment", "yahoo"], marker = "extra == 'all'" },
     { name = "fredapi", marker = "extra == 'fred'", specifier = ">=0.5.0" },
     { name = "httpx", extras = ["http2"], marker = "extra == 'httpx'", specifier = ">=0.27.0" },
     { name = "pandas", specifier = ">=2.0.0" },
@@ -657,6 +659,7 @@ provides-extras = ["yahoo", "fred", "massive", "sentiment", "httpx", "all", "dev
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aioboto3", specifier = ">=13.0.0" },
     { name = "basedpyright", specifier = ">=1.12.0" },
     { name = "pre-commit", specifier = ">=4.0.0" },
     { name = "pyrefly", specifier = ">=0.25.0" },

@@ -37,3 +37,11 @@ def test_sqlite_cache(tmp_path):
     cache.set("key2", "val2", ttl_seconds=0)
     time.sleep(0.1)  # just to ensure clock moves
     assert cache.get("key2") is None
+    cache.close()
+
+
+def test_sqlite_cache_close_is_idempotent(tmp_path):
+    cache = SqliteCacheBackend(db_path=str(tmp_path / "close.db"))
+    cache.set("k", "v", 60)
+    cache.close()
+    cache.close()

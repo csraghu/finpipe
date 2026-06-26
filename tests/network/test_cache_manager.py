@@ -2,7 +2,7 @@ import pytest
 from finpipe.core.config import CacheConfig
 from finpipe.core.exceptions import FinpipeConfigError
 from finpipe.network.cache import create_cache_backend
-from finpipe.network.cache_manager import CacheManager
+from finpipe.network.cache_manager import CacheManager, resolve_cache_backend
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +49,37 @@ def test_create_cache_backend_variants():
     noop = create_cache_backend(CacheConfig(cache_type="none"))
     assert noop.get("missing") is None
     noop.set("k", "v", 60)
+    noop.close()
 
     memory = create_cache_backend(CacheConfig(cache_type="memory", maxsize=10))
     memory.set("k", "v", 60)
     assert memory.get("k") == "v"
+    memory.close()
+
+
+def test_cache_manager_shutdown_closes_sqlite_backend(tmp_path):
+    config = CacheConfig(
+        cache_type="sqlite",
+        sqlite_path=str(tmp_path / "cache.db"),
+        singleton=True,
+    )
+    backend = CacheManager.get_shared(config)
+    backend.set("k", "v", 60)
+    assert backend._conn is not None
+    CacheManager.shutdown()
+    assert not CacheManager._instances
+    assert backend._conn is None
+
+
+def test_resolve_cache_backend_singleton_shares_backend():
+    config = CacheConfig(cache_type="memory", singleton=True, namespace="resolve-shared")
+    first = resolve_cache_backend(config)
+    second = resolve_cache_backend(config)
+    assert first is second
+
+
+def test_resolve_cache_backend_non_singleton_creates_fresh_backend():
+    config = CacheConfig(cache_type="memory", singleton=False)
+    first = resolve_cache_backend(config)
+    second = resolve_cache_backend(config)
+    assert first is not second

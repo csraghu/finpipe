@@ -14,6 +14,26 @@ async def test_client_initialization_and_close(config):
     assert client._registry.get("alpha_vantage")._client._client.is_closed
 
 
+@pytest.mark.asyncio
+async def test_client_close_shuts_down_singleton_cache(tmp_path):
+    from finpipe.core.config import FinpipeConfig
+    from finpipe.network.cache_manager import CacheManager
+
+    cfg = FinpipeConfig.from_dict(
+        {
+            "cache": {
+                "cache_type": "sqlite",
+                "sqlite_path": str(tmp_path / "cache.db"),
+                "singleton": True,
+            }
+        }
+    )
+    CacheManager.reset()
+    async with Client(cfg):
+        pass
+    assert not CacheManager._instances
+
+
 async def test_client_dump_settings(config):
     async with Client(config) as client:
         dumped = client.dump_settings(redact_secrets=True)

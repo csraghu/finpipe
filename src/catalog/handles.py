@@ -13,12 +13,10 @@ if TYPE_CHECKING:
 
 
 def adapter_key_for(capability: CapabilityName, provider_id: str) -> str:
-    if capability == "intel":
-        return "sentiment"
-    if capability == "screener" and provider_id == "tradingview":
-        return "tradingview"
-    if capability == "screener":
-        return "screener"
+    """Resolve the adapter registry key for a catalog provider row."""
+    for entry in PROVIDER_CATALOG:
+        if entry.capability == capability and entry.provider_id == provider_id:
+            return entry.adapter_key
     return provider_id
 
 
@@ -88,8 +86,7 @@ class ProviderRef:
         return self._entry.health_probe_key
 
     def _adapter(self) -> Any:
-        key = adapter_key_for(self._entry.capability, self._entry.provider_id)
-        return self._client._registry.get(key)
+        return self._client._registry.get(self._entry.adapter_key)
 
     async def describe(self) -> dict[str, Any]:
         adapter = self._adapter()

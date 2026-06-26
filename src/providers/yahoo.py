@@ -18,7 +18,7 @@ from finpipe.core.interfaces import (
 )
 from finpipe.core.models import OptionChain, OptionContract, TickerMetadata
 from finpipe.core.registry import BuildContext, register_provider
-from finpipe.network.cache import create_cache_backend
+from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.limiter import build_adaptive_limiter
 from finpipe.network.resilience import rate_limit_db_path
 from finpipe.providers.descriptor import provider_descriptor
@@ -48,7 +48,7 @@ class YahooFinanceAdapter(
             reset_timeout=self._rate_limits.circuit_breaker_recovery_timeout_sec,
             state_storage=pybreaker.CircuitMemoryStorage(pybreaker.STATE_CLOSED),
         )
-        self._cache = create_cache_backend(config.cache)
+        self._cache = resolve_cache_backend(config.cache)
 
     async def describe(self) -> dict[str, Any]:
         cfg = self._config.providers.yahoo

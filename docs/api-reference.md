@@ -196,7 +196,9 @@ Partial JSON is valid: omitted keys keep library defaults (deep-merge over defau
 | `sqlite_db_path` | string | `"finpipe_cache.db"` | Legacy/alternate SQLite path |
 | `maxsize` | int | `1024` | Max entries (memory cache) |
 | `namespace` | string | `"default"` | Cache namespace within the app |
-| `singleton` | bool | `true` | Share one cache backend per process |
+| `singleton` | bool | `true` | Share one cache backend per process via `CacheManager` |
+
+Adapters resolve cache through `resolve_cache_backend(config.cache)`: shared singleton when `singleton: true`, otherwise a dedicated backend per adapter. SQLite backends hold one connection per instance and release it on `CacheManager.shutdown()` (called from `Client.close()` when singleton is enabled).
 
 When `cache_type` is `"sqlite"`, learned AIMD rates are stored in the same database. Otherwise rates go to `.cache/finpipe/rate_limits.db`.
 
@@ -328,6 +330,7 @@ client = Client(FinpipeConfig(dataframe_format="pandas"))
 async with Client(config) as client:
     ...
 # closes HTTP sessions for adapters that support close()
+# and shuts down the singleton cache backend (CacheManager.shutdown)
 
 # or manually:
 client = Client(config)
@@ -337,7 +340,7 @@ finally:
     await client.close()
 ```
 
-`close()` shuts down HTTP clients for: Alpha Vantage, Massive, FRED, TradingView, sentiment, Groq, Gemini. Yahoo uses yfinance (no HTTP session to close).
+`close()` shuts down HTTP clients for: Alpha Vantage, Massive, FRED, screener, sentiment, Groq, Gemini, NVIDIA. Yahoo uses yfinance (no HTTP session to close). When `cache.singleton` is `true`, `close()` also calls `CacheManager.shutdown()` so SQLite cache connections are released explicitly.
 
 ### Public API (v0.5.0)
 
@@ -585,7 +588,7 @@ Each `CapabilityHandle` exposes:
 | `routing.primary` / `.fallback` | `ProviderRef \| None` — from routing config |
 | async methods (e.g. `get_metadata`) | Routed composite I/O (not on `llm`) |
 
-Each `ProviderRef` exposes catalog fields (`provider_id`, `capability`, `label`, `enabled`, …), async `describe()`, and delegates adapter methods (e.g. `get_metadata`, `generate_response`).
+Each `ProviderRef` exposes catalog fields (`provider_id`, `capability`, `adapter_key`, `label`, `enabled`, …), async `describe()`, and delegates adapter methods (e.g. `get_metadata`, `generate_response`). The `adapter_key` field maps each catalog row to the internal adapter registry (e.g. intel sources use `"sentiment"`, TradingView screener uses `"tradingview"`).
 
 Example:
 
@@ -669,7 +672,7 @@ Uses `yfinance` behind `asyncio.to_thread`.
 
 ### Sentiment (intel sources) — `capability("intel").*` routed composite
 
-Intel provider rows (`google_news`, `stocktwits`, `reddit`) map to the shared sentiment adapter. Use routed capability methods (`get_news`, `get_social_posts`, `get_sentiment_score`) or health probes per source.
+Intel provider rows (`google_news`, `stocktwits`, `reddit`) map to the shared sentiment adapter (`adapter_key: "sentiment"` in the provider catalog). Use routed capability methods (`get_news`, `get_social_posts`, `get_sentiment_score`) or health probes per source.
 
 Sources configured under `providers.sentiment.sources` (`google_news`, `stocktwits`, `reddit`).
 

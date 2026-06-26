@@ -18,6 +18,15 @@ def mock_env_vars(monkeypatch):
     monkeypatch.setenv("FINPIPE_CACHE_BACKEND", "memory")
 
 
+@pytest.fixture(autouse=True)
+def reset_shared_cache():
+    from finpipe.network.cache_manager import CacheManager
+
+    CacheManager.reset()
+    yield
+    CacheManager.reset()
+
+
 @pytest.fixture
 def config():
     """Return a base FinpipeConfig for tests."""

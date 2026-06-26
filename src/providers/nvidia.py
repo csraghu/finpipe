@@ -6,7 +6,7 @@ from finpipe.core.exceptions import FinpipeProviderDownError
 from finpipe.core.interfaces import ILLMProvider, IProviderDescribe
 from finpipe.core.models import LLMResponse
 from finpipe.core.registry import BuildContext, register_provider
-from finpipe.network.cache import create_cache_backend
+from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor
 
@@ -24,7 +24,7 @@ class NvidiaAdapter(ILLMProvider, IProviderDescribe):
         self._client = create_resilient_http_client(
             "nvidia", self._provider_config.rate_limits, cache_config=config.cache
         )
-        self._cache = create_cache_backend(config.cache)
+        self._cache = resolve_cache_backend(config.cache)
         self._chat_url = f"{_BASE_URL}/chat/completions"
 
     async def close(self) -> None:

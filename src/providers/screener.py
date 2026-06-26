@@ -15,7 +15,7 @@ from finpipe.core.screener_parsers import (
     parse_yahoo_quote_payload,
     parse_yahoo_trending_symbols,
 )
-from finpipe.network.cache import create_cache_backend
+from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
 
@@ -33,7 +33,7 @@ class ScreenerAdapter(IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.screener
-        self._cache = create_cache_backend(config.cache)
+        self._cache = resolve_cache_backend(config.cache)
         self._clients: dict[str, ResilientHttpClient] = {
             name: create_resilient_http_client(
                 f"screener.{name}",

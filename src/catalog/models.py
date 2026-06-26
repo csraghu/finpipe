@@ -124,6 +124,7 @@ class ProviderCatalogEntry:
     returns: str
     settings_path: str
     api_surface: str
+    adapter_key: str
     health_probe_key: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -135,6 +136,7 @@ class ProviderCatalogEntry:
             "returns": self.returns,
             "settings_path": self.settings_path,
             "api_surface": self.api_surface,
+            "adapter_key": self.adapter_key,
         }
         if self.health_probe_key is not None:
             payload["health_probe_key"] = self.health_probe_key
@@ -152,6 +154,7 @@ class ProviderCatalogEntryResolved:
     returns: str
     settings_path: str
     api_surface: str
+    adapter_key: str
     health_probe_key: str | None
     provider_enabled: bool
     health_probe_enabled: bool | None
@@ -174,6 +177,7 @@ class ProviderCatalogEntryResolved:
             returns=entry.returns,
             settings_path=entry.settings_path,
             api_surface=entry.api_surface,
+            adapter_key=entry.adapter_key,
             health_probe_key=entry.health_probe_key,
             provider_enabled=provider_enabled,
             health_probe_enabled=health_probe_enabled,
@@ -189,6 +193,7 @@ class ProviderCatalogEntryResolved:
             "returns": self.returns,
             "settings_path": self.settings_path,
             "api_surface": self.api_surface,
+            "adapter_key": self.adapter_key,
             "provider_enabled": self.provider_enabled,
             "health_probe_enabled": self.health_probe_enabled,
             "health_probe_would_run": self.health_probe_would_run,

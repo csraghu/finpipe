@@ -72,3 +72,52 @@ async def test_adaptive_limiter_acquire(tmp_path):
     limiter.rate = 100.0
     await limiter.acquire()
     assert limiter.tokens < float(AIMD_BURST_CAPACITY)
+
+
+def test_adaptive_limiter_closes_sqlite_connections(monkeypatch, tmp_path):
+    import sqlite3
+    from contextlib import closing
+
+    db_path = str(tmp_path / "rates.db")
+    close_calls = 0
+    real_closing = closing
+
+    class ConnWrapper:
+        def __init__(self, conn: sqlite3.Connection) -> None:
+            self._conn = conn
+
+        def close(self) -> None:
+            nonlocal close_calls
+            close_calls += 1
+            self._conn.close()
+
+        def __enter__(self):
+            return self._conn.__enter__()
+
+        def __exit__(self, *args):
+            return self._conn.__exit__(*args)
+
+        def __getattr__(self, name: str):
+            return getattr(self._conn, name)
+
+    def tracking_closing(conn: sqlite3.Connection):
+        return real_closing(ConnWrapper(conn))
+
+    monkeypatch.setattr("finpipe.network.limiter.closing", tracking_closing)
+
+    limiter = AdaptiveRateLimiter("close_test", hard_cap_rps=4.0, db_path=db_path)
+    limiter.rate = 2.0
+    limiter._save_rate()
+
+    # __init__ opens for schema init, load, and initial save; _save_rate opens once more
+    assert close_calls >= 4
+
+
+def test_adaptive_limiter_no_unclosed_database_warning(tmp_path):
+    import warnings
+
+    db_path = str(tmp_path / "rates.db")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ResourceWarning)
+        limiter = AdaptiveRateLimiter("resource_warn", hard_cap_rps=4.0, db_path=db_path)
+        limiter.record_429()

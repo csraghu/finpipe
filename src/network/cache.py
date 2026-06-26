@@ -18,6 +18,8 @@ class ICacheBackend(Protocol):
 
     def verify_thread_safe(self) -> bool: ...
 
+    def close(self) -> None: ...
+
 
 class InMemoryTTLCache:
     def __init__(self, maxsize: int = 10000):
@@ -42,16 +44,21 @@ class InMemoryTTLCache:
     def verify_thread_safe(self) -> bool:
         return True
 
+    def close(self) -> None:
+        return None
+
 
 class SqliteCacheBackend:
     def __init__(self, db_path: str):
         self._db_path = db_path
+        self._lock = threading.RLock()
+        self._conn: sqlite3.Connection | None = None
         parent = os.path.dirname(db_path)
         if parent:
             os.makedirs(parent, exist_ok=True)
-        self._init_db()
+        self._ensure_schema()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    def _open_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(
             self._db_path, timeout=60.0, isolation_level=None, check_same_thread=False
         )
@@ -63,56 +70,57 @@ class SqliteCacheBackend:
             pass
         return conn
 
-    def _init_db(self) -> None:
-        conn = self._get_connection()
-        try:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS finpipe_cache (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL,
-                    expiry_timestamp REAL NOT NULL
-                )
-            """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_expiry ON finpipe_cache(expiry_timestamp)")
-        finally:
-            conn.close()
+    def _connection(self) -> sqlite3.Connection:
+        with self._lock:
+            if self._conn is None:
+                self._conn = self._open_connection()
+            return self._conn
+
+    def _ensure_schema(self) -> None:
+        conn = self._connection()
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS finpipe_cache (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                expiry_timestamp REAL NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_expiry ON finpipe_cache(expiry_timestamp)")
 
     def get(self, key: str) -> Any | None:
-        conn = self._get_connection()
-        try:
-            row = conn.execute(
-                "SELECT value, expiry_timestamp FROM finpipe_cache WHERE key = ?", (key,)
-            ).fetchone()
-            if row is None:
+        with self._lock:
+            try:
+                conn = self._connection()
+                row = conn.execute(
+                    "SELECT value, expiry_timestamp FROM finpipe_cache WHERE key = ?", (key,)
+                ).fetchone()
+                if row is None:
+                    return None
+                if time.time() > row["expiry_timestamp"]:
+                    conn.execute("DELETE FROM finpipe_cache WHERE key = ?", (key,))
+                    return None
+                return json.loads(row["value"])
+            except Exception as exc:
+                logger.warning("Cache GET failed", extra={"key": key, "error": str(exc)})
                 return None
-            if time.time() > row["expiry_timestamp"]:
-                conn.execute("DELETE FROM finpipe_cache WHERE key = ?", (key,))
-                return None
-            return json.loads(row["value"])
-        except Exception as exc:
-            logger.warning("Cache GET failed", extra={"key": key, "error": str(exc)})
-            return None
-        finally:
-            conn.close()
 
     def set(self, key: str, value: Any, ttl_seconds: int | float) -> None:
-        conn = self._get_connection()
-        try:
-            expiry = time.time() + ttl_seconds
-            conn.execute(
-                """
-                INSERT INTO finpipe_cache (key, value, expiry_timestamp)
-                VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    value=excluded.value,
-                    expiry_timestamp=excluded.expiry_timestamp
-                """,
-                (key, json.dumps(value), expiry),
-            )
-        except Exception as exc:
-            logger.warning("Cache SET failed", extra={"key": key, "error": str(exc)})
-        finally:
-            conn.close()
+        with self._lock:
+            try:
+                conn = self._connection()
+                expiry = time.time() + ttl_seconds
+                conn.execute(
+                    """
+                    INSERT INTO finpipe_cache (key, value, expiry_timestamp)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        value=excluded.value,
+                        expiry_timestamp=excluded.expiry_timestamp
+                    """,
+                    (key, json.dumps(value), expiry),
+                )
+            except Exception as exc:
+                logger.warning("Cache SET failed", extra={"key": key, "error": str(exc)})
 
     def verify_thread_safe(self) -> bool:
         errors: list[BaseException] = []
@@ -130,6 +138,12 @@ class SqliteCacheBackend:
         for thread in threads:
             thread.join()
         return not errors
+
+    def close(self) -> None:
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
 
 
 def create_cache_backend(config: CacheConfig) -> ICacheBackend:
@@ -150,3 +164,6 @@ class _NoOpCache:
 
     def verify_thread_safe(self) -> bool:
         return True
+
+    def close(self) -> None:
+        return None

@@ -28,6 +28,9 @@ class CacheManager:
             if key not in cls._instances:
                 backend = create_cache_backend(config)
                 if config.cache_type == "sqlite" and not backend.verify_thread_safe():
+                    close = getattr(backend, "close", None)
+                    if callable(close):
+                        close()
                     raise FinpipeConfigError(
                         "SQLite cache failed concurrency self-test; "
                         "set cache.cache_type=memory for dev or fix permissions/locking"
@@ -36,6 +39,20 @@ class CacheManager:
             return cls._instances[key]
 
     @classmethod
-    def reset(cls) -> None:
+    def shutdown(cls) -> None:
+        """Close and drop all singleton cache backends."""
         with cls._init_lock:
+            for backend in cls._instances.values():
+                backend.close()
             cls._instances.clear()
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.shutdown()
+
+
+def resolve_cache_backend(config: CacheConfig) -> ICacheBackend:
+    """Return a shared or dedicated cache backend based on config."""
+    if config.singleton:
+        return CacheManager.get_shared(config)
+    return create_cache_backend(config)

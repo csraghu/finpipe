@@ -10,7 +10,7 @@ from finpipe.core.exceptions import FinpipeDataNotFoundError
 from finpipe.core.interfaces import IHistoricalPriceProvider, IMetadataProvider, IProviderDescribe
 from finpipe.core.models import TickerMetadata
 from finpipe.core.registry import BuildContext, register_provider
-from finpipe.network.cache import create_cache_backend
+from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor
 
@@ -23,7 +23,7 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
         self._provider_config = config.providers.alpha_vantage
         self._provider_config.ensure_configured()
         self._api_key = self._provider_config.api_key
-        self._cache = create_cache_backend(config.cache)
+        self._cache = resolve_cache_backend(config.cache)
         self._client = create_resilient_http_client(
             "alpha_vantage", self._provider_config.rate_limits, cache_config=config.cache
         )

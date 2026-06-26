@@ -70,6 +70,14 @@ class AdapterRegistry:
         return _ADAPTER_KEYS
 
     async def close(self) -> None:
+        if not self._config.cache.singleton:
+            closed_cache_ids: set[int] = set()
+            for adapter in self._adapters.values():
+                cache = getattr(adapter, "_cache", None)
+                if cache is not None and id(cache) not in closed_cache_ids:
+                    cache.close()
+                    closed_cache_ids.add(id(cache))
+
         for key in (
             "alpha_vantage",
             "massive",

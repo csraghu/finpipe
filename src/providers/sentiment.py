@@ -9,7 +9,7 @@ from finpipe.core.config import FinpipeConfig, SentimentSourceConfig
 from finpipe.core.interfaces import IMarketIntelProvider, IProviderDescribe
 from finpipe.core.models import NewsArticle, SentimentScore, SocialPost, SocialPostKind
 from finpipe.core.registry import BuildContext, register_provider
-from finpipe.network.cache import create_cache_backend
+from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
 
@@ -20,7 +20,7 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.sentiment
-        self._cache = create_cache_backend(config.cache)
+        self._cache = resolve_cache_backend(config.cache)
         self._clients: dict[str, ResilientHttpClient] = {
             name: create_resilient_http_client(name, source.rate_limits, cache_config=config.cache)
             for name, source in self._source_configs().items()

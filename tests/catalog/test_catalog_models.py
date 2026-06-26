@@ -34,6 +34,18 @@ def test_provider_catalog_entry_to_dict_with_probe_key():
     entry = next(row for row in PROVIDER_CATALOG if row.health_probe_key)
     payload = entry.to_dict()
     assert payload["health_probe_key"] == entry.health_probe_key
+    assert payload["adapter_key"] == entry.adapter_key
+
+
+def test_intel_catalog_entries_use_sentiment_adapter_key():
+    intel_entries = [row for row in PROVIDER_CATALOG if row.capability == "intel"]
+    assert intel_entries
+    assert all(row.adapter_key == "sentiment" for row in intel_entries)
+
+
+def test_tradingview_catalog_entry_uses_tradingview_adapter_key():
+    entry = next(row for row in PROVIDER_CATALOG if row.provider_id == "tradingview")
+    assert entry.adapter_key == "tradingview"
 
 
 def test_provider_catalog_entry_resolved_to_dict():
@@ -85,5 +97,6 @@ def test_catalog_entries_without_optional_keys():
         returns="r",
         settings_path="s",
         api_surface="a",
+        adapter_key="x",
     )
     assert "health_probe_key" not in bare_provider.to_dict()

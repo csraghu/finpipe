@@ -1427,9 +1427,19 @@ class CacheManager:
                     raise FinpipeConfigError("Cache backend failed thread-safety self-test")
                 cls._instances[key] = backend
             return cls._instances[key]
+
+    @classmethod
+    def shutdown(cls) -> None:
+        """Close and drop all singleton backends (called from Client.close())."""
+        ...
+
+
+def resolve_cache_backend(config: CacheConfig) -> ICacheBackend:
+    """Adapters call this — shared singleton when config.singleton is true."""
+    return CacheManager.get_shared(config) if config.singleton else create_cache_backend(config)
 ```
 
-All `Client(...)` constructions call `CacheManager.get_shared(config.cache)` — never instantiate `SqliteCacheBackend` directly in adapters.
+All provider adapters call `resolve_cache_backend(config.cache)` — never instantiate `SqliteCacheBackend` directly. `SqliteCacheBackend` keeps one SQLite connection per instance and implements `close()` for explicit teardown.
 
 ```text
 App process
@@ -1517,6 +1527,21 @@ if config.cache.cache_type == "sqlite":
 | `memory` + `singleton: true` | Yes — thread-safe locked dict | Dev/test only; not durable |
 | `memory` + `singleton: false` | No | Isolated tests |
 | `none` | N/A | No persistence |
+
+#### Shutdown lifecycle
+
+```python
+async def close(self) -> None:
+    await self._registry.close()          # HTTP adapters; non-singleton caches
+    if self.config.cache.singleton:
+        CacheManager.shutdown()           # closes SqliteCacheBackend connections
+```
+
+AIMD rate-limit SQLite writes in `AdaptiveRateLimiter` use `contextlib.closing(sqlite3.connect(...))` so connections are closed immediately after each persist operation (Python's `with conn:` only commits transactions, it does not close the connection).
+
+#### Provider catalog `adapter_key`
+
+Each `ProviderCatalogEntry` includes `adapter_key` — the internal registry name used by `ProviderRef` to delegate I/O. Intel sources share `"sentiment"`; screener sources (except TradingView) share `"screener"`; TradingView uses `"tradingview"`; most other rows use the provider id (e.g. `"yahoo"`, `"groq"`).
 
 #### Concurrency contract tests (required before release)
 

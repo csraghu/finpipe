@@ -86,6 +86,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="TickerMetadata, DataFrame (OHLCV), float spot price, dict financials",
         settings_path="providers.yahoo",
         api_surface='catalog.capability("equity").* (routing equity_primary/fallback)',
+        adapter_key="yahoo",
         health_probe_key="equity.yahoo",
     ),
     ProviderCatalogEntry(
@@ -96,6 +97,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="OptionChain, DataFrame options snapshot",
         settings_path="providers.yahoo",
         api_surface='catalog.capability("options").* / equity.get_options_chain',
+        adapter_key="yahoo",
         health_probe_key="options.yahoo",
     ),
     ProviderCatalogEntry(
@@ -106,6 +108,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="TickerMetadata, DataFrame (OHLCV), float spot price",
         settings_path="providers.alpha_vantage",
         api_surface='client.catalog.capability("equity").* (routing.equity_fallback)',
+        adapter_key="alpha_vantage",
         health_probe_key="equity.alpha_vantage",
     ),
     ProviderCatalogEntry(
@@ -116,6 +119,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="OptionChain, DataFrame snapshot, list contract dicts",
         settings_path="providers.massive",
         api_surface='client.catalog.capability("options").*',
+        adapter_key="massive",
         health_probe_key="options.massive",
     ),
     ProviderCatalogEntry(
@@ -126,6 +130,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="DataFrame macro series",
         settings_path="providers.fred",
         api_surface='catalog.capability("macro").provider("fred").get_macro_series / macro.*',
+        adapter_key="fred",
         health_probe_key="macro.fred",
     ),
     ProviderCatalogEntry(
@@ -136,6 +141,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="list[NewsArticle]",
         settings_path="providers.sentiment.sources.google_news",
         api_surface='client.catalog.capability("intel").get_news',
+        adapter_key="sentiment",
         health_probe_key="intel.google_news",
     ),
     ProviderCatalogEntry(
@@ -146,6 +152,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="list[SocialPost] (kind=microblog)",
         settings_path="providers.sentiment.sources.stocktwits",
         api_surface='client.catalog.capability("intel").get_social_posts(kind=microblog)',
+        adapter_key="sentiment",
         health_probe_key="intel.stocktwits",
     ),
     ProviderCatalogEntry(
@@ -156,6 +163,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="list[SocialPost] (kind=forum)",
         settings_path="providers.sentiment.sources.reddit",
         api_surface='client.catalog.capability("intel").get_social_posts(kind=forum)',
+        adapter_key="sentiment",
         health_probe_key="intel.reddit",
     ),
     ProviderCatalogEntry(
@@ -166,6 +174,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.yahoo_trending",
         api_surface='client.catalog.capability("screener").get_trending',
+        adapter_key="screener",
         health_probe_key="screener.yahoo_trending",
     ),
     ProviderCatalogEntry(
@@ -176,6 +185,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.yahoo_predefined",
         api_surface='client.catalog.capability("screener").get_predefined',
+        adapter_key="screener",
         health_probe_key="screener.yahoo_predefined",
     ),
     ProviderCatalogEntry(
@@ -186,6 +196,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.finviz",
         api_surface='client.catalog.capability("screener").get_fundamental',
+        adapter_key="screener",
         health_probe_key="screener.finviz",
     ),
     ProviderCatalogEntry(
@@ -196,6 +207,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="list[str] ticker symbols",
         settings_path="providers.screener.sources.tradingview",
         api_surface='client.catalog.capability("screener").run_tradingview',
+        adapter_key="tradingview",
         health_probe_key="screener.tradingview",
     ),
     ProviderCatalogEntry(
@@ -206,6 +218,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.groq",
         api_surface='catalog.capability("llm").provider("groq").generate_response / describe()',
+        adapter_key="groq",
         health_probe_key="llm.groq",
     ),
     ProviderCatalogEntry(
@@ -216,6 +229,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.gemini",
         api_surface='catalog.capability("llm").provider("gemini").generate_response / describe()',
+        adapter_key="gemini",
         health_probe_key="llm.gemini",
     ),
     ProviderCatalogEntry(
@@ -226,6 +240,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.nvidia",
         api_surface='catalog.capability("llm").provider("nvidia").generate_response / describe()',
+        adapter_key="nvidia",
         health_probe_key="llm.nvidia",
     ),
 )

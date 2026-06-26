@@ -5,6 +5,7 @@ from finpipe.catalog import CatalogService
 from finpipe.catalog.adapter_registry import AdapterRegistry
 from finpipe.core.config import FinpipeConfig
 from finpipe.health import HealthService
+from finpipe.network.cache_manager import CacheManager
 from finpipe.providers.composite import (
     CompositeEquityService,
     CompositeIntelService,
@@ -60,6 +61,8 @@ class Client:
 
     async def close(self) -> None:
         await self._registry.close()
+        if self.config.cache.singleton:
+            CacheManager.shutdown()
         logger.info("Finpipe client gracefully shut down.")
 
     async def __aenter__(self) -> Self:

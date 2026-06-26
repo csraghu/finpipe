@@ -15,6 +15,38 @@ def test_adapter_key_for_branches():
     assert adapter_key_for("equity", "yahoo") == "yahoo"
 
 
+def test_catalog_adapter_key_metadata():
+    tradingview = next(
+        row for row in PROVIDER_CATALOG if row.provider_id == "tradingview"
+    )
+    assert tradingview.adapter_key == "tradingview"
+
+    finviz = next(row for row in PROVIDER_CATALOG if row.provider_id == "finviz")
+    assert finviz.adapter_key == "screener"
+
+    intel_entries = [row for row in PROVIDER_CATALOG if row.capability == "intel"]
+    assert intel_entries
+    assert all(row.adapter_key == "sentiment" for row in intel_entries)
+
+
+def test_provider_ref_routes_via_catalog_adapter_key(config):
+    client = Client(config)
+
+    sentiment = MagicMock()
+    sentiment.get_news = AsyncMock()
+    client._registry._adapters["sentiment"] = sentiment
+    intel_ref = client.catalog.capability("intel").provider("google_news")
+    assert intel_ref.get_news is sentiment.get_news
+
+    tradingview = MagicMock()
+    tradingview.run_screener = AsyncMock(return_value=[])
+    screener = MagicMock()
+    client._registry._adapters["tradingview"] = tradingview
+    client._registry._adapters["screener"] = screener
+    tv_ref = client.catalog.capability("screener").provider("tradingview")
+    assert tv_ref.run_screener is tradingview.run_screener
+
+
 def test_provider_ref_properties_and_repr(config):
     client = Client(config)
     entry = next(

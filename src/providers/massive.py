@@ -13,7 +13,7 @@ from finpipe.core.exceptions import FinpipeDataNotFoundError
 from finpipe.core.interfaces import IOptionsProvider, IProviderDescribe
 from finpipe.core.models import OptionChain, OptionContract
 from finpipe.core.registry import BuildContext, register_provider
-from finpipe.network.cache import create_cache_backend
+from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor
 
@@ -28,7 +28,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
         self._provider_config = config.providers.massive
         self._provider_config.ensure_configured()
         self._api_key = self._provider_config.api_key
-        self._cache = create_cache_backend(config.cache)
+        self._cache = resolve_cache_backend(config.cache)
         self._client = create_resilient_http_client(
             "massive", self._provider_config.rate_limits, cache_config=config.cache
         )

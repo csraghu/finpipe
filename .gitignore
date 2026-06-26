@@ -10,6 +10,8 @@ venv/
 .bashrc
 .coverage
 coverage.json
+coverage_report.txt
+*.egg-info/
 .env
 env_exp.sh
 .vscode
@@ -19,6 +21,7 @@ env_exp.sh
 /build/
 /finpipe
 /typecheck/finpipe
+/scripts
 .zed/settings.json
 env.sh
 requirements.txt

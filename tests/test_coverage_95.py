@@ -147,6 +147,9 @@ async def test_screener_headers_custom_and_default():
             }
         }
     )
+    from finpipe.network.cache_manager import CacheManager
+
+    CacheManager.reset()
     adapter2 = ScreenerAdapter(cfg2)
     with respx.mock:
         route2 = respx.get("https://query1.finance.yahoo.com/v1/finance/trending/US").mock(
