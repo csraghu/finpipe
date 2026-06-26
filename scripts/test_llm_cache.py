@@ -9,6 +9,7 @@ from finpipe.core.config import (
 async def test_llm_cache():
     # Setup mock keys and mock config
     import os
+
     os.environ["GROQ_API_KEY"] = "mock_key_groq"
     os.environ["GEMINI_API_KEY"] = "mock_key_gemini"
 
@@ -27,9 +28,10 @@ async def test_llm_cache():
             def json(self):
                 return {
                     "choices": [{"message": {"content": "Hello World!"}}],
-                    "usage": {"prompt_tokens": 10, "completion_tokens": 5}
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5},
                 }
-        await asyncio.sleep(1.0) # simulate network delay
+
+        await asyncio.sleep(1.0)  # simulate network delay
         return MockResponse()
 
     adapter._client.request = mock.AsyncMock(side_effect=mock_request)
@@ -52,6 +54,7 @@ async def test_llm_cache():
     print("Groq Cache Working!")
 
     await adapter.close()
+
 
 if __name__ == "__main__":
     asyncio.run(test_llm_cache())

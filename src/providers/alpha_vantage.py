@@ -12,15 +12,12 @@ from finpipe.core.models import TickerMetadata
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
-
 from finpipe.providers.descriptor import provider_descriptor
 
 logger = logging.getLogger(__name__)
 
 
-class AlphaVantageAdapter(
-    IHistoricalPriceProvider, IMetadataProvider, IProviderDescribe
-):
+class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.alpha_vantage

@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from finpipe.catalog.models import CapabilityName, ProviderCatalogEntry
 from finpipe.catalog.registry import CAPABILITY_CATALOG, PROVIDER_CATALOG
 from finpipe.core.interfaces import IProviderDescribe
-from finpipe.health.registry import is_probe_provider_enabled
 
 if TYPE_CHECKING:
     from finpipe.client import Client
@@ -125,25 +124,19 @@ class CapabilityHandle:
 
     def __init__(self, client: Client, capability: CapabilityName) -> None:
         self._client = client
-        self.id = capability
+        self.id: CapabilityName = capability
 
     def describe(self) -> dict[str, Any]:
         entry = next(row for row in CAPABILITY_CATALOG if row.capability == self.id)
         routing = self._client.config.routing.model_dump()
         provider_ids = tuple(
-            row.provider_id
-            for row in PROVIDER_CATALOG
-            if row.capability == self.id
+            row.provider_id for row in PROVIDER_CATALOG if row.capability == self.id
         )
         primary_provider = (
-            routing.get(entry.primary_routing_key)
-            if entry.primary_routing_key
-            else None
+            routing.get(entry.primary_routing_key) if entry.primary_routing_key else None
         )
         fallback_provider = (
-            routing.get(entry.fallback_routing_key)
-            if entry.fallback_routing_key
-            else None
+            routing.get(entry.fallback_routing_key) if entry.fallback_routing_key else None
         )
         payload: dict[str, Any] = {
             "capability": entry.capability,
@@ -181,9 +174,7 @@ class CapabilityHandle:
         for ref in self.providers():
             if ref.provider_id == normalized:
                 return ref
-        raise KeyError(
-            f"Unknown provider {provider_id!r} for capability {self.id!r}"
-        )
+        raise KeyError(f"Unknown provider {provider_id!r} for capability {self.id!r}")
 
     def __getattr__(self, name: str) -> Any:
         composite = self._client._composites.get(self.id)

@@ -119,7 +119,10 @@ async def test_screener_tradingview_legacy_ttl_merge():
             }
         }
     )
-    assert config.providers.screener.resolve_source_fetch_ttl(
-        "tradingview",
-        legacy_tradingview=config.providers.tradingview.ttls,
-    ) == 600
+    assert (
+        config.providers.screener.resolve_source_fetch_ttl(
+            "tradingview",
+            legacy_tradingview=config.providers.tradingview.ttls,
+        )
+        == 600
+    )

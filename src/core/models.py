@@ -78,9 +78,7 @@ class SentimentScore(BaseModel):
     symbol: str | None = None
     source: str
     timestamp: datetime
-    score: float = Field(
-        ..., description="Sentiment score typically between -1.0 and 1.0"
-    )
+    score: float = Field(..., description="Sentiment score typically between -1.0 and 1.0")
     magnitude: float | None = Field(None, description="Volume or intensity of sentiment")
 
 

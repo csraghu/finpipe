@@ -41,6 +41,21 @@ repos:
         always_run: true
         additional_dependencies:
           - pyrefly>=0.25.0
+          - pytest>=9.1.1
+          - httpx[http2]>=0.27.0
+          - respx>=0.21.0
+          - pydantic>=2.5.0
+          - polars>=0.20.0
+          - pandas>=2.0.0
+          - tenacity>=8.2.0
+          - pybreaker>=1.2.0
+          - cachetools>=5.3.0
+          - curl_cffi>=0.15.0
+          - yfinance>=0.2.0
+          - fredapi>=0.5.0
+          - feedparser>=6.0.0
+          - aioboto3>=13.0.0
+          - pyarrow>=14.0.0
 
       - id: architecture-docs
         name: architecture docs sync
@@ -60,6 +75,9 @@ repos:
           - pytest-asyncio>=1.4.0
           - pytest-cov>=7.1.0
           - pytest-mock>=3.15.1
+          - httpx[http2]>=0.27.0
+          - respx>=0.21.0
+          - feedparser>=6.0.0
           - polars>=0.20.0
           - pydantic>=2.5.0
           - pandas>=2.0.0
@@ -70,6 +88,7 @@ repos:
           - yfinance>=0.2.0
           - fredapi>=0.5.0
           - pyarrow>=14.0.0
+          - aioboto3>=13.0.0
         args:
           - --cov=finpipe
           - --cov-report=term-missing

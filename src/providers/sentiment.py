@@ -11,7 +11,6 @@ from finpipe.core.models import NewsArticle, SentimentScore, SocialPost, SocialP
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
-
 from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
 
 logger = logging.getLogger(__name__)
@@ -23,16 +22,13 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
         self._provider_config = config.providers.sentiment
         self._cache = create_cache_backend(config.cache)
         self._clients: dict[str, ResilientHttpClient] = {
-            name: create_resilient_http_client(
-                name, source.rate_limits, cache_config=config.cache
-            )
+            name: create_resilient_http_client(name, source.rate_limits, cache_config=config.cache)
             for name, source in self._source_configs().items()
         }
 
     async def describe(self) -> dict[str, Any]:
         sources = {
-            name: settings_snapshot(source)
-            for name, source in self._source_configs().items()
+            name: settings_snapshot(source) for name, source in self._source_configs().items()
         }
         return provider_descriptor(
             provider_id="sentiment",
@@ -209,9 +205,7 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
             logger.warning("Reddit analysis failed for %s: %s", symbol, exc)
             return 0, 0
 
-    async def _fetch_stocktwits_posts(
-        self, symbol: str, limit: int = 30
-    ) -> list[SocialPost]:
+    async def _fetch_stocktwits_posts(self, symbol: str, limit: int = 30) -> list[SocialPost]:
         client = self._client_for("stocktwits")
         if client is None:
             return []
@@ -254,9 +248,7 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
         )
         return posts
 
-    async def _fetch_reddit_posts(
-        self, symbol: str, limit: int = 25
-    ) -> list[SocialPost]:
+    async def _fetch_reddit_posts(self, symbol: str, limit: int = 25) -> list[SocialPost]:
         client = self._client_for("reddit")
         if client is None:
             return []
@@ -273,9 +265,7 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
             f"?q={symbol}&restrict_sr=1&sort=new&limit={limit}"
         )
         try:
-            response = await client.request(
-                "GET", url, headers={"User-Agent": user_agent}
-            )
+            response = await client.request("GET", url, headers={"User-Agent": user_agent})
             response.raise_for_status()
             data = response.json()
         except Exception as exc:

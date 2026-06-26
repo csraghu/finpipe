@@ -15,7 +15,6 @@ from finpipe.core.models import OptionChain, OptionContract
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import create_resilient_http_client
-
 from finpipe.providers.descriptor import provider_descriptor
 
 logger = logging.getLogger(__name__)
@@ -113,9 +112,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
         )
         return data.get("results", [])
 
-    async def fetch_single_option_snapshot(
-        self, symbol: str, contract: str
-    ) -> dict[str, Any]:
+    async def fetch_single_option_snapshot(self, symbol: str, contract: str) -> dict[str, Any]:
         underlying_ticker = symbol.strip().upper()
         contract_symbol = contract.strip().upper()
         if not contract_symbol.startswith("O:"):
@@ -132,10 +129,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
         contract_symbol = symbol.strip().upper()
         if not contract_symbol.startswith("O:"):
             contract_symbol = f"O:{contract_symbol}"
-        url = (
-            f"{API_BASE}/v2/aggs/ticker/{contract_symbol}/range/"
-            f"1/day/{from_date}/{to_date}"
-        )
+        url = f"{API_BASE}/v2/aggs/ticker/{contract_symbol}/range/1/day/{from_date}/{to_date}"
         data = await self._get_json(url, {"adjusted": "true"})
         return data.get("results", [])
 
@@ -150,9 +144,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
             aws_secret_access_key=secret_key,
         )
 
-    async def sync_flatfile_from_s3(
-        self, remote_key: str, local_dest_path: str
-    ) -> bool:
+    async def sync_flatfile_from_s3(self, remote_key: str, local_dest_path: str) -> bool:
         session = self._get_aioboto3_session()
         if not session:
             return False
@@ -192,9 +184,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
                 endpoint_url=self._s3_endpoint,
                 config=BotoConfig(signature_version="s3v4"),
             ) as s3:
-                response = await s3.list_objects_v2(
-                    Bucket=self._s3_bucket, Prefix=prefix
-                )
+                response = await s3.list_objects_v2(Bucket=self._s3_bucket, Prefix=prefix)
                 return response.get("Contents", [])
         except (ClientError, BotoCoreError, OSError, TimeoutError) as exc:
             logger.exception("Failed to list S3 files", extra={"error": str(exc)})

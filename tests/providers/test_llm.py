@@ -54,9 +54,7 @@ async def test_groq_adapter(config):
 async def test_groq_adapter_uses_configured_model(config):
     from finpipe.core.config import FinpipeConfig
 
-    custom = FinpipeConfig.from_dict(
-        {"providers": {"groq": {"model": "llama-3.3-70b-versatile"}}}
-    )
+    custom = FinpipeConfig.from_dict({"providers": {"groq": {"model": "llama-3.3-70b-versatile"}}})
     adapter = GroqAdapter(custom)
     json_mock = {
         "choices": [{"message": {"content": "Custom model"}}],
@@ -113,9 +111,7 @@ async def test_gemini_adapter(config):
 async def test_gemini_adapter_uses_configured_model(config):
     from finpipe.core.config import FinpipeConfig
 
-    custom = FinpipeConfig.from_dict(
-        {"providers": {"gemini": {"model": "gemini-2.0-flash"}}}
-    )
+    custom = FinpipeConfig.from_dict({"providers": {"gemini": {"model": "gemini-2.0-flash"}}})
     adapter = GeminiAdapter(custom)
     json_mock = {
         "candidates": [{"content": {"parts": [{"text": "Gemini 2"}]}}],

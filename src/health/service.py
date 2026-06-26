@@ -35,7 +35,7 @@ class HealthService:
         """Static probe catalog merged with current health config (no HTTP)."""
         return self._client.catalog.list_health_probes()
 
-    def health_config_template(self) -> dict[str, object]:
+    def health_config_template(self) -> dict[str, dict[str, bool]]:
         """Suggested ``health.probes`` block for finpipe.settings.json."""
         return self._client.catalog.health_config_template()
 

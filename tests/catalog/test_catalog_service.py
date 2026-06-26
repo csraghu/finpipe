@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from finpipe.core.config import FinpipeConfig
 from finpipe.health.registry import resolve_probe_keys
 

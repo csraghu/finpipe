@@ -103,9 +103,7 @@ class CompositeEquityService:
         )
 
     async def get_metadata(self, symbol: str) -> TickerMetadata:
-        return await call_with_fallback(
-            self._adapters, self._route, "get_metadata", symbol
-        )
+        return await call_with_fallback(self._adapters, self._route, "get_metadata", symbol)
 
     async def get_historical_prices(
         self,
@@ -125,9 +123,7 @@ class CompositeEquityService:
         )
 
     async def get_live_spot_price(self, symbol: str) -> float | None:
-        return await call_with_fallback(
-            self._adapters, self._route, "get_live_spot_price", symbol
-        )
+        return await call_with_fallback(self._adapters, self._route, "get_live_spot_price", symbol)
 
     async def get_financial_statements(self, symbol: str) -> dict[str, Any]:
         return await call_with_fallback(
@@ -195,9 +191,7 @@ class CompositeOptionsService:
             order=order,
         )
 
-    async def fetch_single_option_snapshot(
-        self, symbol: str, contract: str
-    ) -> dict[str, Any]:
+    async def fetch_single_option_snapshot(self, symbol: str, contract: str) -> dict[str, Any]:
         return await call_with_fallback(
             self._adapters,
             self._route,
@@ -218,9 +212,7 @@ class CompositeOptionsService:
             to_date,
         )
 
-    async def sync_flatfile_from_s3(
-        self, remote_key: str, local_dest_path: str
-    ) -> bool:
+    async def sync_flatfile_from_s3(self, remote_key: str, local_dest_path: str) -> bool:
         return await call_with_fallback(
             self._adapters,
             self._route,
@@ -230,9 +222,7 @@ class CompositeOptionsService:
         )
 
     async def list_s3_files(self, prefix: str) -> list[dict[str, Any]]:
-        return await call_with_fallback(
-            self._adapters, self._route, "list_s3_files", prefix
-        )
+        return await call_with_fallback(self._adapters, self._route, "list_s3_files", prefix)
 
     async def get_options_chain(
         self, symbol: str, expiration_date: date | None = None
@@ -278,9 +268,7 @@ class CompositeIntelService:
         self._config = config
         self._sentiment = sentiment
 
-    async def get_news(
-        self, symbol: str | None = None, limit: int = 20
-    ) -> list[NewsArticle]:
+    async def get_news(self, symbol: str | None = None, limit: int = 20) -> list[NewsArticle]:
         return await self._sentiment.get_news(symbol, limit=limit)
 
     async def get_social_posts(

@@ -52,9 +52,7 @@ class IMacroProvider(Protocol):
 
 @runtime_checkable
 class IMarketIntelProvider(Protocol):
-    async def get_news(
-        self, symbol: str | None = None, limit: int = 20
-    ) -> list[NewsArticle]: ...
+    async def get_news(self, symbol: str | None = None, limit: int = 20) -> list[NewsArticle]: ...
 
     async def get_social_posts(
         self,

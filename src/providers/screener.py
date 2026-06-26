@@ -8,24 +8,21 @@ from finpipe.core.config import (
 )
 from finpipe.core.exceptions import FinpipeProviderDownError
 from finpipe.core.interfaces import IProviderDescribe
+from finpipe.core.registry import BuildContext, register_provider
 from finpipe.core.screener_parsers import (
     parse_finviz_screener_tickers,
     parse_tradingview_scan_symbols,
     parse_yahoo_quote_payload,
     parse_yahoo_trending_symbols,
 )
-from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.resilience import ResilientHttpClient, create_resilient_http_client
-
 from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
 
 logger = logging.getLogger(__name__)
 
 _YAHOO_TRENDING_URL = "https://query1.finance.yahoo.com/v1/finance/trending/US"
-_YAHOO_PREDEFINED_URL = (
-    "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
-)
+_YAHOO_PREDEFINED_URL = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
 _TRADINGVIEW_SCAN_URL = "https://scanner.tradingview.com/america/scan"
 _DEFAULT_PREDEFINED_LIMIT = 50
 
@@ -48,8 +45,7 @@ class ScreenerAdapter(IProviderDescribe):
 
     async def describe(self) -> dict[str, Any]:
         sources = {
-            name: settings_snapshot(source)
-            for name, source in self._source_configs().items()
+            name: settings_snapshot(source) for name, source in self._source_configs().items()
         }
         return provider_descriptor(
             provider_id="screener",
@@ -87,9 +83,7 @@ class ScreenerAdapter(IProviderDescribe):
         if source.http.user_agent:
             headers["User-Agent"] = source.http.user_agent
         elif source_name in ("yahoo_trending", "yahoo_predefined", "finviz"):
-            headers["User-Agent"] = (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            )
+            headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         return headers
 
     def _fetch_ttl(self, source_name: str) -> int:
@@ -129,8 +123,8 @@ class ScreenerAdapter(IProviderDescribe):
             return []
 
         source = self._provider_config.sources.yahoo_predefined
-        resolved_limit = limit if limit is not None else (
-            source.default_limit or _DEFAULT_PREDEFINED_LIMIT
+        resolved_limit = (
+            limit if limit is not None else (source.default_limit or _DEFAULT_PREDEFINED_LIMIT)
         )
         cache_key = self._source_cache_key("yahoo_predefined", f"{scr_id}_{resolved_limit}")
         cached = self._cache.get(cache_key)
@@ -164,9 +158,7 @@ class ScreenerAdapter(IProviderDescribe):
 
         url = f"https://finviz.com/screener.ashx?v=111&s={filter_key}"
         try:
-            response = await client.request(
-                "GET", url, headers=self._headers_for("finviz") or None
-            )
+            response = await client.request("GET", url, headers=self._headers_for("finviz") or None)
             symbols = sorted(parse_finviz_screener_tickers(response.text))
             self._cache.set(cache_key, symbols, self._fetch_ttl("finviz"))
             return symbols

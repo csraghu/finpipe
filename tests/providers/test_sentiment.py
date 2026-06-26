@@ -106,9 +106,7 @@ async def test_news_sentiment_adapter_social_posts(config):
         respx.get(url__startswith="https://www.reddit.com").mock(
             return_value=httpx.Response(200, json=json_mock)
         )
-        posts = await adapter.get_social_posts(
-            "AAPL", limit=5, kind=SocialPostKind.FORUM
-        )
+        posts = await adapter.get_social_posts("AAPL", limit=5, kind=SocialPostKind.FORUM)
         assert len(posts) == 1
         assert posts[0].kind == SocialPostKind.FORUM
         assert posts[0].title == "AAPL moon"

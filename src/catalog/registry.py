@@ -81,12 +81,11 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         capability="equity",
         label="Yahoo Finance (equity)",
         description=(
-            "Historical OHLCV, spot price, company metadata, "
-            "and financial statements via yfinance."
+            "Historical OHLCV, spot price, company metadata, and financial statements via yfinance."
         ),
         returns="TickerMetadata, DataFrame (OHLCV), float spot price, dict financials",
         settings_path="providers.yahoo",
-        api_surface='client.catalog.capability("equity").* (routed via routing.equity_primary/fallback)',
+        api_surface='catalog.capability("equity").* (routing equity_primary/fallback)',
         health_probe_key="equity.yahoo",
     ),
     ProviderCatalogEntry(
@@ -96,7 +95,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Options chain and snapshot data via yfinance.",
         returns="OptionChain, DataFrame options snapshot",
         settings_path="providers.yahoo",
-        api_surface='client.catalog.capability("options").* / client.catalog.capability("equity").get_options_chain',
+        api_surface='catalog.capability("options").* / equity.get_options_chain',
         health_probe_key="options.yahoo",
     ),
     ProviderCatalogEntry(
@@ -126,7 +125,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Federal Reserve economic time series (e.g. DGS10 risk-free rate).",
         returns="DataFrame macro series",
         settings_path="providers.fred",
-        api_surface='client.catalog.capability("macro").provider("fred").get_macro_series / client.catalog.capability("macro").*',
+        api_surface='catalog.capability("macro").provider("fred").get_macro_series / macro.*',
         health_probe_key="macro.fred",
     ),
     ProviderCatalogEntry(
@@ -206,7 +205,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Groq chat completions API.",
         returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.groq",
-        api_surface='client.catalog.capability("llm").provider("groq").generate_response / .describe()',
+        api_surface='catalog.capability("llm").provider("groq").generate_response / describe()',
         health_probe_key="llm.groq",
     ),
     ProviderCatalogEntry(
@@ -216,7 +215,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="Google Gemini generateContent API.",
         returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.gemini",
-        api_surface='client.catalog.capability("llm").provider("gemini").generate_response / .describe()',
+        api_surface='catalog.capability("llm").provider("gemini").generate_response / describe()',
         health_probe_key="llm.gemini",
     ),
     ProviderCatalogEntry(
@@ -226,7 +225,7 @@ PROVIDER_CATALOG: tuple[ProviderCatalogEntry, ...] = (
         description="NVIDIA build.nvidia.com chat completions API (OpenAI-compatible).",
         returns="LLMResponse text; describe() includes remote model ids",
         settings_path="providers.nvidia",
-        api_surface='client.catalog.capability("llm").provider("nvidia").generate_response / .describe()',
+        api_surface='catalog.capability("llm").provider("nvidia").generate_response / describe()',
         health_probe_key="llm.nvidia",
     ),
 )

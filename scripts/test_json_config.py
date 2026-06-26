@@ -6,16 +6,8 @@ from finpipe.core.config import FinpipeConfig
 # Create a dummy json override file
 override_data = {
     "providers": {
-        "yahoo": {
-            "rate_limits": {
-                "max_requests_per_second": 42.0
-            }
-        },
-        "alpha_vantage": {
-            "ttls": {
-                "historical_prices_sec": 9999
-            }
-        }
+        "yahoo": {"rate_limits": {"max_requests_per_second": 42.0}},
+        "alpha_vantage": {"ttls": {"historical_prices_sec": 9999}},
     }
 }
 

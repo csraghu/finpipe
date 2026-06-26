@@ -21,14 +21,13 @@ from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache import create_cache_backend
 from finpipe.network.limiter import build_adaptive_limiter
 from finpipe.network.resilience import rate_limit_db_path
+from finpipe.providers.descriptor import provider_descriptor
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential_jitter,
 )
-
-from finpipe.providers.descriptor import provider_descriptor
 
 logger = logging.getLogger(__name__)
 
@@ -317,17 +316,12 @@ class YahooFinanceAdapter(
                     return snapshots
         return snapshots
 
-    async def fetch_single_option_snapshot(
-        self, symbol: str, contract: str
-    ) -> dict[str, Any]:
+    async def fetch_single_option_snapshot(self, symbol: str, contract: str) -> dict[str, Any]:
         snapshots = await self.fetch_options_snapshot(symbol, limit=1000)
         normalized = contract.replace("O:", "").strip().upper()
         for snapshot in snapshots:
             ticker = (
-                str(snapshot.get("details", {}).get("ticker", ""))
-                .replace("O:", "")
-                .strip()
-                .upper()
+                str(snapshot.get("details", {}).get("ticker", "")).replace("O:", "").strip().upper()
             )
             if ticker == normalized:
                 return snapshot
@@ -339,9 +333,7 @@ class YahooFinanceAdapter(
         del symbol, from_date, to_date
         return []
 
-    async def sync_flatfile_from_s3(
-        self, remote_key: str, local_dest_path: str
-    ) -> bool:
+    async def sync_flatfile_from_s3(self, remote_key: str, local_dest_path: str) -> bool:
         del remote_key, local_dest_path
         return False
 

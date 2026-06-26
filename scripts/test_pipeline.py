@@ -61,10 +61,17 @@ async def run_pipeline():
 
     # The Client handles opening and cleanly closing all HTTP connections
     async with Client(config) as client:
+        macro = client.catalog.capability("macro")
+        equity_yahoo = client.catalog.capability("equity").provider("yahoo")
+        equity_av = client.catalog.capability("equity").provider("alpha_vantage")
+        options_yahoo = client.catalog.capability("options").provider("yahoo")
+        options_massive = client.catalog.capability("options").provider("massive")
+        intel = client.catalog.capability("intel")
+
         # 1. Fetch Macro Data (Independent of specific tickers)
         logger.info(f"--- Fetching Macro Data: {macro_series} ---")
         try:
-            macro_df = await client.fred.get_macro_series(
+            macro_df = await macro.get_macro_series(
                 macro_series, start_date=date(2020, 1, 1), end_date=date.today()
             )
             logger.info(f"[SUCCESS] FRED Macro Data: {macro_series}. Points: {len(macro_df)}")
@@ -84,26 +91,26 @@ async def run_pipeline():
             logger.info(f"\n--- Processing Ticker: {symbol} ---")
 
             tasks_to_run = [
-                ("Metadata (Yahoo)", client.yahoo.get_metadata(symbol)),
-                ("Spot Price (Yahoo)", client.yahoo.get_live_spot_price(symbol)),
+                ("Metadata (Yahoo)", equity_yahoo.get_metadata(symbol)),
+                ("Spot Price (Yahoo)", equity_yahoo.get_live_spot_price(symbol)),
                 (
                     "Historical Prices (Yahoo)",
-                    client.yahoo.get_historical_prices(
+                    equity_yahoo.get_historical_prices(
                         symbol, date.today() - timedelta(days=365), date.today()
                     ),
                 ),
                 (
                     "Historical Prices (AlphaVantage)",
-                    client.alpha_vantage.get_historical_prices(
+                    equity_av.get_historical_prices(
                         symbol, date.today() - timedelta(days=365), date.today()
                     ),
                 ),
-                ("Financial Statements (Yahoo)", client.yahoo.get_financial_statements(symbol)),
-                ("Options Chain (Yahoo)", client.yahoo.get_options_chain(symbol)),
-                ("Options Snapshot (Massive)", client.massive.get_options_snapshot(symbol)),
+                ("Financial Statements (Yahoo)", equity_yahoo.get_financial_statements(symbol)),
+                ("Options Chain (Yahoo)", options_yahoo.get_options_chain(symbol)),
+                ("Options Snapshot (Massive)", options_massive.get_options_snapshot(symbol)),
                 (
                     "News Sentiment (StockTwits/Google)",
-                    client.sentiment.get_sentiment_score(symbol),
+                    intel.get_sentiment_score(symbol),
                 ),
             ]
 

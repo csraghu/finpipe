@@ -55,4 +55,6 @@ def test_client_dump_settings(config):
     assert settings["providers"]["gemini"]["api_key"] == "<redacted>"
     assert settings["capabilities"]["screener"]["providers"]["tradingview"]["enabled"] is True
     assert settings["capabilities"]["screener"]["providers"]["screener"]["enabled"] is True
-    assert "yahoo_trending" in settings["capabilities"]["screener"]["providers"]["screener"]["sources"]
+    assert (
+        "yahoo_trending" in settings["capabilities"]["screener"]["providers"]["screener"]["sources"]
+    )

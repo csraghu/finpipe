@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from finpipe.core.config import FinpipeConfig
-from finpipe.core.interfaces import IScreenerProvider, IProviderDescribe
+from finpipe.core.interfaces import IProviderDescribe, IScreenerProvider
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.providers.screener import ScreenerAdapter
 

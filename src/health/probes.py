@@ -29,8 +29,10 @@ async def probe_equity_alpha_vantage(client: Client, symbol: str) -> str | None:
 async def probe_options_massive(client: Client, symbol: str) -> str | None:
     if not client.config.providers.massive.api_key:
         raise FinpipeConfigError("MASSIVE_API_KEY not configured")
-    frame = await client.catalog.capability("options").provider("massive").get_options_snapshot(
-        symbol, limit=1
+    frame = (
+        await client.catalog.capability("options")
+        .provider("massive")
+        .get_options_snapshot(symbol, limit=1)
     )
     if frame is None or (hasattr(frame, "is_empty") and frame.is_empty()):
         return "options snapshot empty"
@@ -38,8 +40,10 @@ async def probe_options_massive(client: Client, symbol: str) -> str | None:
 
 
 async def probe_options_yahoo(client: Client, symbol: str) -> str | None:
-    frame = await client.catalog.capability("options").provider("yahoo").get_options_snapshot(
-        symbol, limit=1
+    frame = (
+        await client.catalog.capability("options")
+        .provider("yahoo")
+        .get_options_snapshot(symbol, limit=1)
     )
     if frame is None or (hasattr(frame, "is_empty") and frame.is_empty()):
         return "options snapshot empty"
@@ -52,8 +56,10 @@ async def probe_macro_fred(client: Client, symbol: str) -> str | None:
         raise FinpipeConfigError("FRED_API_KEY not configured")
     end = date.today()
     start = end - timedelta(days=7)
-    series = await client.catalog.capability("macro").provider("fred").get_macro_series(
-        "DGS10", start, end
+    series = (
+        await client.catalog.capability("macro")
+        .provider("fred")
+        .get_macro_series("DGS10", start, end)
     )
     if series is None or (hasattr(series, "is_empty") and series.is_empty()):
         return "macro series empty"

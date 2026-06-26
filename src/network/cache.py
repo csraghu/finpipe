@@ -69,9 +69,7 @@ class SqliteCacheBackend:
                     expiry_timestamp REAL NOT NULL
                 )
             """)
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_expiry ON finpipe_cache(expiry_timestamp)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_expiry ON finpipe_cache(expiry_timestamp)")
         finally:
             conn.close()
 

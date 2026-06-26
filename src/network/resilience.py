@@ -32,6 +32,7 @@ def _rate_limit_db_path(cache_config: CacheConfig | None) -> str:
         return cache_config.sqlite_path or cache_config.sqlite_db_path
     return DEFAULT_RATE_LIMIT_DB_PATH
 
+
 def rate_limit_db_path(cache_config: CacheConfig | None) -> str:
     """Public helper for non-HTTP providers (e.g. Yahoo) that build limiters directly."""
     return _rate_limit_db_path(cache_config)
