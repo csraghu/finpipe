@@ -221,6 +221,8 @@ class AbstractProviderConfig(BaseModel):
 
     def ensure_configured(self) -> None:
         """Lazy validation hook for provider-specific requirements."""
+        if not self.enabled:
+            return
 
 
 class YahooConfig(AbstractProviderConfig):
@@ -238,6 +240,9 @@ class FredConfig(AbstractProviderConfig):
     api_key: str | None = Field(default_factory=lambda: os.getenv("FRED_API_KEY"))
 
     def ensure_configured(self) -> None:
+        super().ensure_configured()
+        if not self.enabled:
+            return
         if not self.api_key:
             raise FinpipeConfigError("Missing required API key configuration: FRED_API_KEY")
 
@@ -250,6 +255,9 @@ class AlphaVantageConfig(AbstractProviderConfig):
     api_key: str | None = Field(default_factory=lambda: os.getenv("ALPHA_VANTAGE_API_KEY"))
 
     def ensure_configured(self) -> None:
+        super().ensure_configured()
+        if not self.enabled:
+            return
         if not self.api_key:
             raise FinpipeConfigError(
                 "Missing required API key configuration: ALPHA_VANTAGE_API_KEY"
@@ -281,6 +289,9 @@ class GroqConfig(AbstractProviderConfig):
     api_key: str | None = Field(default_factory=lambda: os.getenv("GROQ_API_KEY"))
 
     def ensure_configured(self) -> None:
+        super().ensure_configured()
+        if not self.enabled:
+            return
         if not self.api_key:
             raise FinpipeConfigError("Missing required API key configuration: GROQ_API_KEY")
 
@@ -303,6 +314,9 @@ class GeminiConfig(AbstractProviderConfig):
     api_key: str | None = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
 
     def ensure_configured(self) -> None:
+        super().ensure_configured()
+        if not self.enabled:
+            return
         if not self.api_key:
             raise FinpipeConfigError("Missing required API key configuration: GEMINI_API_KEY")
 
@@ -325,6 +339,9 @@ class NvidiaConfig(AbstractProviderConfig):
     api_key: str | None = Field(default_factory=lambda: os.getenv("NVIDIA_API_KEY"))
 
     def ensure_configured(self) -> None:
+        super().ensure_configured()
+        if not self.enabled:
+            return
         if not self.api_key:
             raise FinpipeConfigError("Missing required API key configuration: NVIDIA_API_KEY")
 
@@ -343,6 +360,9 @@ class MassiveConfig(AbstractProviderConfig):
     s3_bucket: str | None = Field(default_factory=lambda: os.getenv("MASSIVE_S3_BUCKET"))
 
     def ensure_configured(self) -> None:
+        super().ensure_configured()
+        if not self.enabled:
+            return
         missing = [
             k
             for k in [

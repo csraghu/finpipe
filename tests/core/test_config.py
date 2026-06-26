@@ -133,6 +133,60 @@ def test_llm_provider_model_merge_from_dict():
     assert config.providers.gemini.model == "gemini-2.0-flash"
 
 
+def test_ensure_configured_noop_when_provider_disabled(monkeypatch):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
+
+    config = FinpipeConfig.from_dict(
+        {
+            "providers": {
+                "nvidia": {"enabled": False},
+                "groq": {"enabled": False},
+                "gemini": {"enabled": False},
+                "fred": {"enabled": False},
+                "alpha_vantage": {"enabled": False},
+            }
+        }
+    )
+    config.providers.nvidia.ensure_configured()
+    config.providers.groq.ensure_configured()
+    config.providers.gemini.ensure_configured()
+    config.providers.fred.ensure_configured()
+    config.providers.alpha_vantage.ensure_configured()
+
+
+def test_client_init_skips_disabled_provider_key_validation(monkeypatch):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+    monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
+    monkeypatch.setenv("MASSIVE_API_KEY", "test_massive")
+    monkeypatch.setenv("MASSIVE_ACCESS_KEY_ID", "test_id")
+    monkeypatch.setenv("MASSIVE_SECRET_ACCESS_KEY", "test_secret")
+    monkeypatch.setenv("MASSIVE_S3_ENDPOINT", "http://test")
+    monkeypatch.setenv("MASSIVE_S3_BUCKET", "test_bucket")
+    monkeypatch.setenv("FINPIPE_CACHE_BACKEND", "memory")
+
+    from finpipe import Client
+
+    config = FinpipeConfig.from_dict(
+        {
+            "providers": {
+                "nvidia": {"enabled": False},
+                "groq": {"enabled": False},
+                "gemini": {"enabled": False},
+                "fred": {"enabled": False},
+                "alpha_vantage": {"enabled": False},
+            }
+        }
+    )
+    Client(config)
+
+
 def test_screener_per_source_rate_limits(config):
     sources = config.providers.screener.sources
     assert sources.yahoo_trending.rate_limits.max_requests_per_second == 2.0

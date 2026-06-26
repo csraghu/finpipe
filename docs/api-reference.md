@@ -219,7 +219,7 @@ Each provider block supports:
 
 | Key | Description |
 |-----|-------------|
-| `enabled` | Toggle (default `true`); adapters may still initialize today |
+| `enabled` | Toggle (default `true`); when `false`, `ensure_configured()` is a no-op and missing API keys are not validated at `Client()` init |
 | `model` | LLM only (`groq`, `gemini`) — default chat model when `generate_response` is called without `model=` |
 | `temperature` | LLM only — default sampling temperature |
 | `max_tokens` | LLM only — default completion token cap |
@@ -277,15 +277,16 @@ Secrets are read from the **process environment** at config/adapter initializati
 
 | Variable | Provider | Required when |
 |----------|----------|---------------|
-| `FRED_API_KEY` | FRED | `Client()` is constructed (adapter calls `ensure_configured()`) |
-| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage | `Client()` is constructed |
-| `MASSIVE_API_KEY` | Massive REST | `Client()` is constructed |
-| `MASSIVE_ACCESS_KEY_ID` | Massive S3 | `Client()` is constructed |
-| `MASSIVE_SECRET_ACCESS_KEY` | Massive S3 | `Client()` is constructed |
-| `MASSIVE_S3_ENDPOINT` | Massive S3 | `Client()` is constructed (e.g. `https://files.massive.com`) |
-| `MASSIVE_S3_BUCKET` | Massive S3 | `Client()` is constructed (e.g. `flatfiles`) |
-| `GROQ_API_KEY` | Groq | `Client()` is constructed |
-| `GEMINI_API_KEY` | Gemini | `Client()` is constructed |
+| `FRED_API_KEY` | FRED | Provider is `enabled: true` in settings (validated at `Client()` init) |
+| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage | Provider is `enabled: true` |
+| `MASSIVE_API_KEY` | Massive REST | Provider is `enabled: true` |
+| `MASSIVE_ACCESS_KEY_ID` | Massive S3 | Provider is `enabled: true` |
+| `MASSIVE_SECRET_ACCESS_KEY` | Massive S3 | Provider is `enabled: true` |
+| `MASSIVE_S3_ENDPOINT` | Massive S3 | Provider is `enabled: true` (e.g. `https://files.massive.com`) |
+| `MASSIVE_S3_BUCKET` | Massive S3 | Provider is `enabled: true` (e.g. `flatfiles`) |
+| `GROQ_API_KEY` | Groq | Provider is `enabled: true` |
+| `GEMINI_API_KEY` | Gemini | Provider is `enabled: true` |
+| `NVIDIA_API_KEY` | NVIDIA NIM | Provider is `enabled: true` |
 
 **No API key required:** Yahoo, TradingView, sentiment sources (Google News, StockTwits, Reddit).
 

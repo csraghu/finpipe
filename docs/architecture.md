@@ -1729,7 +1729,7 @@ Pattern: `FINPIPE_{PROVIDER}_{SETTING}` maps to nested JSON path (documented in 
 | Lazy API keys | Missing key raises `FinpipeConfigError` only when that provider's method is called |
 | Eager file schema | Invalid JSON or unknown provider name in `routing.*_primary` fails at `FinpipeConfig.load()` |
 | Strict mode | `FINPIPE_CONFIG_STRICT=1` rejects unknown keys in settings file |
-| Disabled provider | `enabled: false` → adapter not registered; routing skips it |
+| Disabled provider | `enabled: false` → `ensure_configured()` no-op; missing API keys not validated at `Client()` init; routing skips the provider |
 | Clamp | User RPS/RPM/daily above hard cap → clamped + `logging.warning` |
 
 ### IDE integration (JSON Schema)
