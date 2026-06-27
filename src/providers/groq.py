@@ -7,6 +7,7 @@ from finpipe.core.interfaces import ILLMProvider, IProviderDescribe
 from finpipe.core.models import LLMResponse
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache_manager import resolve_cache_backend
+from finpipe.network.limiter import estimate_llm_token_usage
 from finpipe.network.resilience import create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor
 
@@ -74,9 +75,14 @@ class GroqAdapter(ILLMProvider, IProviderDescribe):
         if cached_data is not None:
             return LLMResponse(**cached_data)
 
+        estimated = estimate_llm_token_usage(prompt, payload["max_tokens"])
         try:
             response = await self._client.request(
-                "POST", self._base_url, headers=headers, json=payload
+                "POST",
+                self._base_url,
+                headers=headers,
+                json=payload,
+                token_estimate=estimated,
             )
             data = response.json()
         except Exception as exc:
@@ -89,6 +95,14 @@ class GroqAdapter(ILLMProvider, IProviderDescribe):
 
         content = choices[0].get("message", {}).get("content", "")
         usage = data.get("usage", {})
+        actual_tokens = usage.get("total_tokens")
+        if actual_tokens is None:
+            prompt_tokens = usage.get("prompt_tokens")
+            completion_tokens = usage.get("completion_tokens")
+            if prompt_tokens is not None and completion_tokens is not None:
+                actual_tokens = prompt_tokens + completion_tokens
+        if actual_tokens is not None:
+            await self._client.reconcile_token_usage(estimated, actual_tokens)
         response_obj = LLMResponse(
             model_name=model_name,
             prompt_tokens=usage.get("prompt_tokens"),

@@ -60,6 +60,79 @@ class TokenBucketRateLimiter:
         )
 
 
+class RpmTpmRateLimiter:
+    """Dual-bucket limiter for LLM RPM and TPM caps (concurrent enforcement)."""
+
+    def __init__(self, *, rpm: int | None, tpm: int) -> None:
+        self.tpm = tpm
+        self.tok_capacity = float(tpm)
+        self.tok_tokens = self.tok_capacity
+        self.tok_rate = tpm / 60.0
+        self.rpm = rpm
+        if rpm is not None:
+            self.req_capacity = float(rpm)
+            self.req_tokens = self.req_capacity
+            self.req_rate = rpm / 60.0
+        else:
+            self.req_capacity = None
+            self.req_tokens = None
+            self.req_rate = None
+        self.last_refill = time.monotonic()
+        self.lock = asyncio.Lock()
+
+    def _refill(self) -> None:
+        now = time.monotonic()
+        elapsed = now - self.last_refill
+        if (
+            self.req_capacity is not None
+            and self.req_tokens is not None
+            and self.req_rate is not None
+        ):
+            self.req_tokens = min(self.req_capacity, self.req_tokens + elapsed * self.req_rate)
+        self.tok_tokens = min(self.tok_capacity, self.tok_tokens + elapsed * self.tok_rate)
+        self.last_refill = now
+
+    async def acquire(self, tokens: int = 1) -> None:
+        amount = max(1, tokens)
+        while True:
+            async with self.lock:
+                self._refill()
+                req_ok = self.req_tokens is None or self.req_tokens >= 1
+                tok_ok = self.tok_tokens >= amount
+                if req_ok and tok_ok:
+                    if self.req_tokens is not None:
+                        self.req_tokens -= 1
+                    self.tok_tokens -= amount
+                    return
+                req_wait = 0.0
+                if (
+                    self.req_tokens is not None
+                    and self.req_rate is not None
+                    and self.req_tokens < 1
+                ):
+                    req_wait = max(0.0, (1 - self.req_tokens) / self.req_rate)
+                tok_wait = 0.0
+                if self.tok_tokens < amount:
+                    tok_wait = max(0.0, (amount - self.tok_tokens) / self.tok_rate)
+                wait_time = max(req_wait, tok_wait)
+            if wait_time > 0:
+                await asyncio.sleep(wait_time)
+
+    async def update_actual_tokens(self, expected: int, actual: int) -> None:
+        if actual == expected:
+            return
+        async with self.lock:
+            self._refill()
+            diff = expected - actual
+            self.tok_tokens = min(self.tok_capacity, self.tok_tokens + diff)
+
+
+def estimate_llm_token_usage(prompt: str, max_completion_tokens: int) -> int:
+    """Conservative pre-request token estimate for TPM bucket acquire."""
+    prompt_estimate = max(1, len(prompt) // 4)
+    return prompt_estimate + max(1, max_completion_tokens)
+
+
 class AdaptiveRateLimiter:
     """AIMD token-bucket limiter with SQLite persistence (aksh port; tuning is internal)."""
 

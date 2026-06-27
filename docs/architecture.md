@@ -130,7 +130,7 @@ finpipe/
 │   ├── network/
 │   │   ├── http.py               # ResilientHttpClient + pluggable async transports
 │   │   ├── transports/           # httpx.py (REST default), curl_cffi.py (scraping)
-│   │   ├── limiter.py            # AdaptiveRateLimiter (AIMD), TokenBucketRateLimiter (RPM/TPM)
+│   │   ├── limiter.py            # AdaptiveRateLimiter (AIMD), TokenBucketRateLimiter, RpmTpmRateLimiter
 │   │   ├── concurrency.py        # DynamicConcurrencyLimiter (from aksh)
 │   │   ├── resilience.py         # Async retries + circuit breaker wrapper
 │   │   ├── cache.py              # ICacheBackend (async get/set), InMemory, Sqlite
@@ -1205,12 +1205,17 @@ class AdaptiveRateLimiter:
 
 #### LLM providers — dual RPM + TPM limiter
 
-Groq/Gemini enforce **requests-per-minute** and **tokens-per-minute** concurrently via aksh's **`TokenBucketRateLimiter`** (dual bucket), in addition to `AdaptiveRateLimiter` RPS:
+When `max_tokens_per_minute` is set on an LLM provider's `rate_limits`, Groq/Gemini/NVIDIA enforce **requests-per-minute** and **tokens-per-minute** concurrently via **`RpmTpmRateLimiter`** (dual bucket), in addition to `AdaptiveRateLimiter` RPS. When `max_tokens_per_minute` is `null`, TPM is not enforced (RPM-only providers still use `TokenBucketRateLimiter` when `max_requests_per_minute` is set).
 
 ```python
+estimated = estimate_llm_token_usage(prompt, max_completion_tokens)
 await adaptive_limiter.acquire()
-await rpm_tpm_limiter.acquire(tokens=prompt_token_estimate)
+await rpm_tpm_limiter.acquire(tokens=estimated)
+# ... HTTP call ...
+await rpm_tpm_limiter.update_actual_tokens(estimated, actual_from_usage)
 ```
+
+LLM adapters pass `token_estimate` into `ResilientHttpClient.request()` and call `reconcile_token_usage()` after the response when usage metadata is present. Cache hits skip acquire/reconcile.
 
 #### Per-provider wiring
 
@@ -1218,7 +1223,7 @@ await rpm_tpm_limiter.acquire(tokens=prompt_token_estimate)
 providers.yahoo.rate_limits     → AdaptiveRateLimiter("yfinance")
 providers.fred.rate_limits      → AdaptiveRateLimiter("fred")
 providers.massive.rate_limits   → AdaptiveRateLimiter("massive")
-providers.groq.rate_limits      → AdaptiveRateLimiter("groq") + TokenBucketRateLimiter(rpm, tpm)
+providers.groq.rate_limits      → AdaptiveRateLimiter("groq") + RpmTpmRateLimiter(rpm, tpm)
 ```
 
 Configuration fields are defined in **`RateLimitConfig`** (see per-provider config schema above).
@@ -1249,8 +1254,8 @@ Restarting the application resumes at last learned `current_rate` — no cold-st
 | Limit type | Mechanism |
 |------------|-----------|
 | `max_requests_per_second` | User hard cap — `AdaptiveRateLimiter` ceiling + AIMD current rate |
-| `max_requests_per_minute` | User hard cap — `TokenBucketRateLimiter` RPM bucket (LLM) |
-| `max_tokens_per_minute` | User hard cap — `TokenBucketRateLimiter` token bucket (LLM) |
+| `max_requests_per_minute` | User hard cap — `RpmTpmRateLimiter` RPM bucket or `TokenBucketRateLimiter` (LLM, when TPM unset) |
+| `max_tokens_per_minute` | User hard cap — `RpmTpmRateLimiter` token bucket (LLM; optional — ignored when `null`) |
 | AIMD burst / increase / decrease | Internal constants in `finpipe._internal.aimd` |
 | `max_concurrent_requests` | `DynamicConcurrencyLimiter` (derived from current adaptive rate) |
 

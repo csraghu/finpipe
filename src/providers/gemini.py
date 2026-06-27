@@ -7,6 +7,7 @@ from finpipe.core.interfaces import ILLMProvider, IProviderDescribe
 from finpipe.core.models import LLMResponse
 from finpipe.core.registry import BuildContext, register_provider
 from finpipe.network.cache_manager import resolve_cache_backend
+from finpipe.network.limiter import estimate_llm_token_usage
 from finpipe.network.resilience import create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor
 
@@ -75,9 +76,14 @@ class GeminiAdapter(ILLMProvider, IProviderDescribe):
             return LLMResponse(**cached_data)
 
         url = f"{self._base_url}/{model_name}:generateContent?key={self._api_key}"
+        estimated = estimate_llm_token_usage(prompt, generation_config["maxOutputTokens"])
         try:
             response = await self._client.request(
-                "POST", url, headers={"Content-Type": "application/json"}, json=payload
+                "POST",
+                url,
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                token_estimate=estimated,
             )
             data = response.json()
         except Exception as exc:
@@ -91,6 +97,14 @@ class GeminiAdapter(ILLMProvider, IProviderDescribe):
         content_part = candidates[0].get("content", {}).get("parts", [{}])[0]
         content_text = content_part.get("text", "")
         usage = data.get("usageMetadata", {})
+        actual_tokens = usage.get("totalTokenCount")
+        if actual_tokens is None:
+            prompt_tokens = usage.get("promptTokenCount")
+            completion_tokens = usage.get("candidatesTokenCount")
+            if prompt_tokens is not None and completion_tokens is not None:
+                actual_tokens = prompt_tokens + completion_tokens
+        if actual_tokens is not None:
+            await self._client.reconcile_token_usage(estimated, actual_tokens)
         response_obj = LLMResponse(
             model_name=model_name,
             prompt_tokens=usage.get("promptTokenCount"),

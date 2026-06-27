@@ -237,7 +237,7 @@ Each provider block supports:
 |-----|---------|-------------|
 | `max_requests_per_second` | `5.0` | Hard RPS cap (AIMD never exceeds this) |
 | `max_requests_per_minute` | `null` | Optional RPM cap (LLM providers) |
-| `max_tokens_per_minute` | `null` | Optional TPM cap (LLM providers) |
+| `max_tokens_per_minute` | `null` | Optional TPM cap (LLM providers); enforced via `RpmTpmRateLimiter` when set, ignored when `null` |
 | `max_retries` | `3` | HTTP retry attempts |
 | `circuit_breaker_failure_threshold` | `5` | Failures before circuit opens |
 | `circuit_breaker_recovery_timeout_sec` | `60.0` | Circuit half-open delay |

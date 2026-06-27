@@ -13,7 +13,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from .limiter import TokenBucketRateLimiter, build_adaptive_limiter
+from .limiter import RpmTpmRateLimiter, TokenBucketRateLimiter, build_adaptive_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,13 @@ class ResilientHttpClient:
         resolved_db = db_path or DEFAULT_RATE_LIMIT_DB_PATH
         self.rate_limiter = build_adaptive_limiter(namespace, config, db_path=resolved_db)
         self._rpm_limiter: TokenBucketRateLimiter | None = None
-        if config.max_requests_per_minute is not None:
+        self._llm_limiter: RpmTpmRateLimiter | None = None
+        if config.max_tokens_per_minute is not None:
+            self._llm_limiter = RpmTpmRateLimiter(
+                rpm=config.max_requests_per_minute,
+                tpm=config.max_tokens_per_minute,
+            )
+        elif config.max_requests_per_minute is not None:
             rpm_rate = config.max_requests_per_minute / 60.0
             self._rpm_limiter = TokenBucketRateLimiter(
                 max_rate=rpm_rate,
@@ -83,14 +89,28 @@ class ResilientHttpClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def _acquire_limits(self) -> None:
+    async def _acquire_limits(self, token_estimate: int | None = None) -> None:
         await self.rate_limiter.acquire()
-        if self._rpm_limiter is not None:
+        if self._llm_limiter is not None:
+            tokens = max(1, token_estimate) if token_estimate is not None else 1
+            await self._llm_limiter.acquire(tokens)
+        elif self._rpm_limiter is not None:
             await self._rpm_limiter.acquire(1.0)
 
-    async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+    async def reconcile_token_usage(self, expected: int, actual: int) -> None:
+        if self._llm_limiter is not None:
+            await self._llm_limiter.update_actual_tokens(expected, actual)
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        token_estimate: int | None = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
         async def _make_request() -> httpx.Response:
-            await self._acquire_limits()
+            await self._acquire_limits(token_estimate)
             async with self.rate_limiter.concurrency.limit():
                 response = await self._client.request(method, url, **kwargs)
                 if response.status_code == 429:
