@@ -3,8 +3,10 @@ from finpipe.core.config import FinpipeConfig
 
 
 @pytest.fixture(autouse=True)
-def mock_env_vars(monkeypatch):
-    """Set mock environment variables for testing."""
+def mock_env_vars(request, monkeypatch):
+    """Set mock environment variables for unit tests (not live integration probes)."""
+    if request.node.get_closest_marker("live") is not None:
+        return
     monkeypatch.setenv("MASSIVE_API_KEY", "test_massive")
     monkeypatch.setenv("MASSIVE_ACCESS_KEY_ID", "test_id")
     monkeypatch.setenv("MASSIVE_SECRET_ACCESS_KEY", "test_secret")
@@ -29,8 +31,20 @@ def reset_shared_cache():
 
 @pytest.fixture
 def config():
-    """Return a base FinpipeConfig for tests."""
-    return FinpipeConfig()
+    """Return a base FinpipeConfig for tests (httpx transport for respx mocks)."""
+    return FinpipeConfig.from_dict(
+        {
+            "providers": {
+                "sentiment": {
+                    "sources": {
+                        "google_news": {"http": {"transport": "httpx"}},
+                        "stocktwits": {"http": {"transport": "httpx"}},
+                        "reddit": {"http": {"transport": "httpx"}},
+                    }
+                }
+            }
+        }
+    )
 
 
 @pytest.fixture

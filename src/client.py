@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 from finpipe.catalog import CatalogService
 from finpipe.catalog.adapter_registry import AdapterRegistry
@@ -15,6 +15,9 @@ from finpipe.providers.composite import (
 )
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from finpipe.health.models import HealthReport
 
 
 class Client:
@@ -70,6 +73,10 @@ class Client:
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.close()
+
+    async def health_check(self) -> "HealthReport":
+        """Run all configured provider probes; use ``report.http_status`` for HTTP 200/503."""
+        return await self.health.ping()
 
     def dump_settings(self, *, redact_secrets: bool = True) -> dict[str, Any]:
         """Return resolved settings for all capability and provider interfaces."""

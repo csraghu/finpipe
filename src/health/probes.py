@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
@@ -20,21 +21,19 @@ async def probe_equity_yahoo(client: Client, symbol: str) -> str | None:
 async def probe_equity_alpha_vantage(client: Client, symbol: str) -> str | None:
     if not client.config.providers.alpha_vantage.api_key:
         raise FinpipeConfigError("ALPHA_VANTAGE_API_KEY not configured")
-    meta = await client.catalog.capability("equity").provider("alpha_vantage").get_metadata(symbol)
-    if not meta.symbol:
-        return "metadata missing symbol"
+    av = client.catalog.capability("equity").provider("alpha_vantage")
+    price = await av.get_live_spot_price(symbol)
+    if price is None:
+        return f"spot price unavailable for {symbol}"
     return None
 
 
 async def probe_options_massive(client: Client, symbol: str) -> str | None:
     if not client.config.providers.massive.api_key:
         raise FinpipeConfigError("MASSIVE_API_KEY not configured")
-    frame = (
-        await client.catalog.capability("options")
-        .provider("massive")
-        .get_options_snapshot(symbol, limit=1)
-    )
-    if frame is None or (hasattr(frame, "is_empty") and frame.is_empty()):
+    massive = client.catalog.capability("options").provider("massive")
+    snapshots = await massive.fetch_options_snapshot(symbol, limit=1)
+    if not snapshots:
         return "options snapshot empty"
     return None
 
@@ -83,11 +82,13 @@ async def probe_intel_stocktwits(client: Client, symbol: str) -> str | None:
 
 
 async def probe_intel_reddit(client: Client, symbol: str) -> str | None:
+    del symbol
+    reddit_symbol = client.config.health.reddit_probe_symbol
     posts = await client.catalog.capability("intel").get_social_posts(
-        symbol, limit=1, kind=SocialPostKind.FORUM
+        reddit_symbol, limit=1, kind=SocialPostKind.FORUM
     )
     if not posts:
-        return "no reddit posts returned"
+        return f"no reddit posts returned for {reddit_symbol}"
     return None
 
 
@@ -109,10 +110,17 @@ async def probe_screener_yahoo_predefined(client: Client, symbol: str) -> str | 
 
 async def probe_screener_finviz(client: Client, symbol: str) -> str | None:
     del symbol
-    tickers = await client.catalog.capability("screener").get_fundamental("ta_topgainers")
-    if not tickers:
-        return "finviz screener returned no tickers"
-    return None
+    health = client.config.health
+    screener = client.catalog.capability("screener")
+    filters: list[str] = []
+    for key in (health.finviz_probe_filter, "geo_usa", "ta_topgainers"):
+        if key not in filters:
+            filters.append(key)
+    for filter_key in filters:
+        tickers = await screener.get_fundamental(filter_key)
+        if tickers:
+            return None
+    return f"finviz screener returned no tickers (tried: {', '.join(filters)})"
 
 
 async def probe_screener_tradingview(client: Client, symbol: str) -> str | None:
@@ -125,37 +133,51 @@ async def probe_screener_tradingview(client: Client, symbol: str) -> str | None:
     return None
 
 
+async def _probe_llm_provider(client: Client, provider_id: str) -> str | None:
+    """Run a minimal chat completion against an LLM provider (HTTP 200 semantics)."""
+    provider_cfg = getattr(client.config.providers, provider_id)
+    api_key = getattr(provider_cfg, "api_key", None)
+    if not api_key:
+        env_name = provider_id.upper() + "_API_KEY"
+        raise FinpipeConfigError(f"{env_name} not configured")
+
+    health = client.config.health
+    prompt = f"{health.llm_probe_prompt} [{time.perf_counter():.6f}]"
+    provider = client.catalog.capability("llm").provider(provider_id)
+
+    if provider_id == "gemini":
+        response = await provider.generate_response(
+            prompt,
+            generationConfig={
+                "maxOutputTokens": health.llm_probe_max_tokens,
+                "temperature": 0,
+            },
+        )
+    else:
+        response = await provider.generate_response(
+            prompt,
+            max_tokens=health.llm_probe_max_tokens,
+            temperature=0,
+        )
+
+    if not response.content or not str(response.content).strip():
+        return f"{provider_id} returned empty completion"
+    return None
+
+
 async def probe_llm_groq(client: Client, symbol: str) -> str | None:
     del symbol
-    if not client.config.providers.groq.api_key:
-        raise FinpipeConfigError("GROQ_API_KEY not configured")
-    info = await client.catalog.capability("llm").provider("groq").describe()
-    models = info.get("details", {}).get("models", [])
-    if not models:
-        return "groq models list empty"
-    return None
+    return await _probe_llm_provider(client, "groq")
 
 
 async def probe_llm_gemini(client: Client, symbol: str) -> str | None:
     del symbol
-    if not client.config.providers.gemini.api_key:
-        raise FinpipeConfigError("GEMINI_API_KEY not configured")
-    info = await client.catalog.capability("llm").provider("gemini").describe()
-    models = info.get("details", {}).get("models", [])
-    if not models:
-        return "gemini models list empty"
-    return None
+    return await _probe_llm_provider(client, "gemini")
 
 
 async def probe_llm_nvidia(client: Client, symbol: str) -> str | None:
     del symbol
-    if not client.config.providers.nvidia.api_key:
-        raise FinpipeConfigError("NVIDIA_API_KEY not configured")
-    info = await client.catalog.capability("llm").provider("nvidia").describe()
-    models = info.get("details", {}).get("models", [])
-    if not models:
-        return "nvidia models list empty"
-    return None
+    return await _probe_llm_provider(client, "nvidia")
 
 
 PROBE_RUNNERS = {

@@ -1,10 +1,12 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pybreaker
+from curl_cffi import requests as cffi_requests
+from curl_cffi.requests.exceptions import HTTPError as CurlHTTPError
 from finpipe._internal.aimd import DEFAULT_RATE_LIMIT_DB_PATH
-from finpipe.core.config import CacheConfig, RateLimitConfig
+from finpipe.core.config import CacheConfig, HttpConfig, RateLimitConfig
 from finpipe.core.exceptions import FinpipeProviderDownError, FinpipeRateLimitExceededError
 from tenacity import (
     AsyncRetrying,
@@ -43,12 +45,47 @@ def create_resilient_http_client(
     config: RateLimitConfig,
     *,
     cache_config: CacheConfig | None = None,
+    http: HttpConfig | None = None,
 ) -> "ResilientHttpClient":
     return ResilientHttpClient(
         namespace,
         config,
         db_path=_rate_limit_db_path(cache_config),
+        http=http,
     )
+
+
+def _http_error_status(exc: BaseException) -> int | None:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code
+    response = getattr(exc, "response", None)
+    if response is not None:
+        return getattr(response, "status_code", None)
+    return None
+
+
+def _http_error_body_snippet(exc: BaseException, *, max_len: int = 300) -> str:
+    response = getattr(exc, "response", None)
+    if response is None:
+        return ""
+    try:
+        text = response.text
+    except Exception:
+        return ""
+    if not text:
+        return ""
+    snippet = text.strip().replace("\n", " ")
+    if len(snippet) > max_len:
+        snippet = snippet[:max_len] + "…"
+    return snippet
+
+
+def _format_http_status_error(status_code: int | None, exc: BaseException) -> str:
+    msg = f"Provider returned error status: {status_code}"
+    snippet = _http_error_body_snippet(exc)
+    if snippet:
+        msg = f"{msg}: {snippet}"
+    return msg
 
 
 class ResilientHttpClient:
@@ -65,9 +102,11 @@ class ResilientHttpClient:
         config: RateLimitConfig,
         *,
         db_path: str | None = None,
+        http: HttpConfig | None = None,
     ):
         self.namespace = namespace
         self._config = config
+        self._http = http or HttpConfig()
         resolved_db = db_path or DEFAULT_RATE_LIMIT_DB_PATH
         self.rate_limiter = build_adaptive_limiter(namespace, config, db_path=resolved_db)
         self._rpm_limiter: TokenBucketRateLimiter | None = None
@@ -84,10 +123,35 @@ class ResilientHttpClient:
                 capacity=float(config.max_requests_per_minute),
             )
         self._breaker = create_circuit_breaker(config)
-        self._client = httpx.AsyncClient(timeout=30.0)
+        self._httpx_client: httpx.AsyncClient | None = None
+        self._curl_session: cffi_requests.AsyncSession | None = None
+        if self._http.transport == "curl_cffi":
+            session_headers: dict[str, str] = {}
+            if self._http.user_agent:
+                session_headers["User-Agent"] = self._http.user_agent
+            self._curl_session = cffi_requests.AsyncSession(
+                timeout=self._http.timeout_read_sec,
+                impersonate=cast(Any, self._http.impersonate or "chrome124"),
+                headers=session_headers or None,
+            )
+        else:
+            timeout = httpx.Timeout(
+                self._http.timeout_read_sec,
+                connect=self._http.timeout_connect_sec,
+            )
+            self._httpx_client = httpx.AsyncClient(timeout=timeout, follow_redirects=True)
 
     async def close(self) -> None:
-        await self._client.aclose()
+        if self._httpx_client is not None:
+            await self._httpx_client.aclose()
+            self._httpx_client = None
+        if self._curl_session is not None:
+            session = self._curl_session
+            self._curl_session = None
+            try:
+                await session.close()
+            except (TypeError, RuntimeError) as exc:
+                logger.debug("Ignored error closing curl_cffi session: %s", exc)
 
     async def _acquire_limits(self, token_estimate: int | None = None) -> None:
         await self.rate_limiter.acquire()
@@ -101,6 +165,13 @@ class ResilientHttpClient:
         if self._llm_limiter is not None:
             await self._llm_limiter.update_actual_tokens(expected, actual)
 
+    async def _transport_request(self, method: str, url: str, **kwargs: Any) -> Any:
+        if self._curl_session is not None:
+            return await self._curl_session.request(method, url, **kwargs)
+        if self._httpx_client is None:
+            raise RuntimeError(f"HTTP client ({self.namespace}) is closed")
+        return await self._httpx_client.request(method, url, **kwargs)
+
     async def request(
         self,
         method: str,
@@ -109,10 +180,10 @@ class ResilientHttpClient:
         token_estimate: int | None = None,
         **kwargs: Any,
     ) -> httpx.Response:
-        async def _make_request() -> httpx.Response:
+        async def _make_request() -> Any:
             await self._acquire_limits(token_estimate)
             async with self.rate_limiter.concurrency.limit():
-                response = await self._client.request(method, url, **kwargs)
+                response = await self._transport_request(method, url, **kwargs)
                 if response.status_code == 429:
                     self.rate_limiter.record_429()
                     response.raise_for_status()
@@ -129,7 +200,9 @@ class ResilientHttpClient:
                 wait=wait_exponential_jitter(
                     initial=1.0, max=10.0, exp_base=self._config.backoff_multiplier
                 ),
-                retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.NetworkError)),
+                retry=retry_if_exception_type(
+                    (httpx.HTTPStatusError, httpx.NetworkError, CurlHTTPError)
+                ),
                 reraise=True,
             ):
                 with attempt:
@@ -137,14 +210,13 @@ class ResilientHttpClient:
         except pybreaker.CircuitBreakerError as exc:
             logger.error("Circuit breaker tripped", extra={"url": url, "namespace": self.namespace})
             raise FinpipeProviderDownError(f"Circuit breaker tripped for {url}") from exc
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 429:
+        except (httpx.HTTPStatusError, CurlHTTPError) as exc:
+            status_code = _http_error_status(exc)
+            if status_code == 429:
                 raise FinpipeRateLimitExceededError(
                     "Rate limit exhausted and max retries reached"
                 ) from exc
-            raise FinpipeProviderDownError(
-                f"Provider returned error status: {exc.response.status_code}"
-            ) from exc
+            raise FinpipeProviderDownError(_format_http_status_error(status_code, exc)) from exc
         except httpx.NetworkError as exc:
             raise FinpipeProviderDownError("Provider network error") from exc
 

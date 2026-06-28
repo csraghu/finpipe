@@ -46,7 +46,7 @@ async def test_groq_adapter(config):
         )
         resp = await adapter.generate_response("Say hello")
         assert resp.content == "Hello world"
-        assert resp.model_name == "llama3-8b-8192"
+        assert resp.model_name == "meta-llama/llama-4-scout-17b-16e-instruct"
         assert resp.prompt_tokens == 10
 
 
@@ -77,16 +77,40 @@ async def test_groq_describe_includes_models_and_limits(config):
 
     with respx.mock:
         respx.get("https://api.groq.com/openai/v1/models").mock(
-            return_value=httpx.Response(200, json={"data": [{"id": "llama3-8b-8192"}]})
+            return_value=httpx.Response(
+                200, json={"data": [{"id": "meta-llama/llama-4-scout-17b-16e-instruct"}]}
+            )
         )
         info = await adapter.describe()
 
     assert info["provider_id"] == "groq"
     assert info["capability"] == "llm"
     assert info["details"]["default_model"]
-    assert info["details"]["models"] == ["llama3-8b-8192"]
+    assert info["details"]["models"] == ["meta-llama/llama-4-scout-17b-16e-instruct"]
     assert info["settings"]["rate_limits"]["max_requests_per_minute"] == 30
     assert info["settings"]["api_key"] == "<configured>"
+
+
+@pytest.mark.asyncio
+async def test_gemini_adapter_sanitizes_prompt_before_request(config):
+    adapter = GeminiAdapter(config)
+    json_mock = {
+        "candidates": [{"content": {"parts": [{"text": "ok"}]}}],
+        "usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 1},
+    }
+    raw_prompt = "<p>Hello &#128640;</p> [link](https://example.com/x?utm_source=spam)"
+
+    with respx.mock:
+        route = respx.post(url__startswith="https://generativelanguage.googleapis.com").mock(
+            return_value=httpx.Response(200, json=json_mock)
+        )
+        await adapter.generate_response(raw_prompt)
+        body = route.calls.last.request.content.decode()
+        assert "&#128640;" not in body
+        assert "<p>" not in body
+        assert "utm_source" not in body
+        assert "Hello" in body
+        assert "https://example.com/x" in body
 
 
 @pytest.mark.asyncio
@@ -103,7 +127,7 @@ async def test_gemini_adapter(config):
         )
         resp = await adapter.generate_response("Say hello")
         assert resp.content == "Hello Gemini"
-        assert resp.model_name == "gemini-1.5-flash"
+        assert resp.model_name == "gemini-3.1-flash-lite"
         assert resp.prompt_tokens == 5
 
 
@@ -136,13 +160,13 @@ async def test_gemini_describe_includes_models(config):
         respx.get(url__startswith="https://generativelanguage.googleapis.com").mock(
             return_value=httpx.Response(
                 200,
-                json={"models": [{"name": "models/gemini-1.5-flash"}]},
+                json={"models": [{"name": "models/gemini-3.1-flash-lite"}]},
             )
         )
         info = await adapter.describe()
 
     assert info["provider_id"] == "gemini"
-    assert info["details"]["models"] == ["gemini-1.5-flash"]
+    assert info["details"]["models"] == ["gemini-3.1-flash-lite"]
 
 
 @pytest.mark.asyncio

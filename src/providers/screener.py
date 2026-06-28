@@ -82,8 +82,12 @@ class ScreenerAdapter(IProviderDescribe):
         headers: dict[str, str] = {}
         if source.http.user_agent:
             headers["User-Agent"] = source.http.user_agent
-        elif source_name in ("yahoo_trending", "yahoo_predefined", "finviz"):
+        elif source_name in ("yahoo_trending", "yahoo_predefined"):
             headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+        if source_name == "finviz":
+            headers["Referer"] = "https://finviz.com/screener.ashx"
+            headers["Accept"] = "text/html,application/xhtml+xml"
         return headers
 
     def _fetch_ttl(self, source_name: str) -> int:

@@ -41,7 +41,15 @@ def test_sentiment_per_source_rate_limits(config):
     assert sources.google_news.rate_limits.max_requests_per_second == 1.0
     assert sources.stocktwits.rate_limits.max_requests_per_second == 2.0
     assert sources.reddit.rate_limits.max_requests_per_second == 0.5
-    assert sources.reddit.rate_limits.max_retries == 5
+    assert sources.reddit.rate_limits.max_retries == 1
+
+
+def test_sentiment_scraping_sources_default_curl_cffi():
+    sources = FinpipeConfig().providers.sentiment.sources
+    assert sources.google_news.http.transport == "curl_cffi"
+    assert sources.stocktwits.http.transport == "curl_cffi"
+    assert sources.reddit.http.transport == "curl_cffi"
+    assert sources.reddit.rate_limits.max_retries == 1
 
 
 def test_sentiment_per_source_merge_from_dict():
@@ -115,8 +123,8 @@ def test_provider_ttls_merge_from_dict():
 
 
 def test_llm_provider_default_models(config):
-    assert config.providers.groq.model == "llama3-8b-8192"
-    assert config.providers.gemini.model == "gemini-1.5-flash"
+    assert config.providers.groq.model == "meta-llama/llama-4-scout-17b-16e-instruct"
+    assert config.providers.gemini.model == "gemini-3.1-flash-lite"
     assert config.providers.nvidia.model == "meta/llama-3.1-70b-instruct"
 
 
@@ -131,6 +139,31 @@ def test_llm_provider_model_merge_from_dict():
     )
     assert config.providers.groq.model == "llama-3.3-70b-versatile"
     assert config.providers.gemini.model == "gemini-2.0-flash"
+
+
+def test_llm_prompt_compression_defaults(config):
+    assert config.llm_prompt.compression.enabled is True
+    assert config.llm_prompt.compression.target_ratio == 0.5
+
+
+def test_migrate_legacy_gemini_prompt_compression():
+    config = FinpipeConfig.from_dict(
+        {
+            "providers": {
+                "gemini": {
+                    "prompt_compression": {
+                        "enabled": False,
+                        "target_ratio": 0.3,
+                        "min_chars": 100,
+                        "device": "cuda",
+                    }
+                }
+            }
+        }
+    )
+    assert config.llm_prompt.compression.enabled is False
+    assert config.llm_prompt.compression.target_ratio == 0.3
+    assert "prompt_compression" not in config.providers.gemini.model_dump()
 
 
 def test_ensure_configured_noop_when_provider_disabled(monkeypatch):

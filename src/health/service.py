@@ -71,6 +71,14 @@ class HealthService:
         results = await asyncio.gather(*(self.check(key) for key in keys))
         return HealthReport(results={result.key: result for result in results})
 
+    async def ping(self) -> HealthReport:
+        """Run all configured probes — primary app health-check entry point."""
+        return await self.check_all()
+
+    async def ping_probe(self, probe_key: str) -> ProbeResult:
+        """Run one provider probe — use for per-endpoint health checks."""
+        return await self.check(probe_key)
+
     async def _run_probe(self, probe_key: str) -> str | None:
         runner = PROBE_RUNNERS.get(probe_key)
         if runner is None:

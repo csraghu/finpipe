@@ -8,6 +8,7 @@ from finpipe.core.exceptions import (
     FinpipeProviderDownError,
     FinpipeRateLimitExceededError,
 )
+from finpipe.health import HealthReport, ProbeResult, run_health_check, run_probe
 
 __all__ = [
     "Client",
@@ -17,5 +18,9 @@ __all__ = [
     "FinpipeDataNotFoundError",
     "FinpipeProviderDownError",
     "FinpipeConfigError",
+    "HealthReport",
+    "ProbeResult",
+    "run_health_check",
+    "run_probe",
     "__version__",
 ]

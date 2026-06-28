@@ -6,6 +6,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 from finpipe.core.config import FinpipeConfig, SentimentSourceConfig
+from finpipe.core.exceptions import FinpipeProviderDownError
 from finpipe.core.interfaces import IMarketIntelProvider, IProviderDescribe
 from finpipe.core.models import NewsArticle, SentimentScore, SocialPost, SocialPostKind
 from finpipe.core.registry import BuildContext, register_provider
@@ -15,6 +16,59 @@ from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
 
 logger = logging.getLogger(__name__)
 
+_REDDIT_ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
+_REDDIT_BULL_KEYWORDS = ("call", "calls", "moon", "bull", "long", "buy")
+_REDDIT_BEAR_KEYWORDS = ("put", "puts", "bear", "short", "sell", "tank", "drop")
+_REDDIT_FORUM_SUBREDDITS = ("wallstreetbets", "stocks", "investing")
+_REDDIT_ENTRIES_PER_SUBREDDIT = 5
+
+_STOCKTWITS_STREAM_URL = "https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
+_STOCKTWITS_HEADERS = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://stocktwits.com/",
+    "Origin": "https://stocktwits.com",
+}
+
+
+def _reddit_search_url(symbol: str, subreddit: str) -> str:
+    return (
+        f"https://www.reddit.com/r/{subreddit}/search.rss?q={symbol}&restrict_sr=on&sort=new&t=week"
+    )
+
+
+def _stocktwits_message_sentiment(msg: dict[str, Any]) -> str | None:
+    """Return bullish/bearish label from Stocktwits message (aksh + entities shapes)."""
+    legacy = msg.get("sentiment") or {}
+    if isinstance(legacy, dict):
+        label = legacy.get("class")
+        if isinstance(label, str):
+            return label.lower()
+    entities = (msg.get("entities") or {}).get("sentiment") or {}
+    if isinstance(entities, dict):
+        basic = entities.get("basic")
+        if isinstance(basic, str):
+            return basic.lower()
+    return None
+
+
+def _parse_reddit_atom_feed(text: str) -> list[tuple[str, str, str]]:
+    """Parse Reddit Atom search feed into (title, url, body) tuples."""
+    root = ET.fromstring(text)
+    items: list[tuple[str, str, str]] = []
+    for entry in root.findall("atom:entry", _REDDIT_ATOM_NS):
+        title = (entry.findtext("atom:title", default="", namespaces=_REDDIT_ATOM_NS) or "").strip()
+        link_el = entry.find("atom:link", _REDDIT_ATOM_NS)
+        url = link_el.get("href", "") if link_el is not None else ""
+        body = (
+            entry.findtext("atom:content", default="", namespaces=_REDDIT_ATOM_NS)
+            or entry.findtext("atom:summary", default="", namespaces=_REDDIT_ATOM_NS)
+            or title
+        ).strip()
+        if title and url:
+            items.append((title, url, body))
+    return items
+
 
 class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
@@ -22,7 +76,12 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
         self._provider_config = config.providers.sentiment
         self._cache = resolve_cache_backend(config.cache)
         self._clients: dict[str, ResilientHttpClient] = {
-            name: create_resilient_http_client(name, source.rate_limits, cache_config=config.cache)
+            name: create_resilient_http_client(
+                f"sentiment.{name}",
+                source.rate_limits,
+                cache_config=config.cache,
+                http=source.http,
+            )
             for name, source in self._source_configs().items()
         }
 
@@ -53,6 +112,53 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
         if source is None or not source.enabled:
             return None
         return self._clients[source_name]
+
+    def _stocktwits_headers(self) -> dict[str, str]:
+        headers = dict(_STOCKTWITS_HEADERS)
+        user_agent = self._provider_config.sources.stocktwits.http.user_agent
+        if user_agent:
+            headers["User-Agent"] = user_agent
+        return headers
+
+    async def _fetch_stocktwits_stream(self, symbol: str) -> dict[str, Any] | None:
+        client = self._client_for("stocktwits")
+        if client is None:
+            return None
+        url = _STOCKTWITS_STREAM_URL.format(symbol=symbol)
+        try:
+            response = await client.request("GET", url, headers=self._stocktwits_headers())
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, dict) else None
+        except FinpipeProviderDownError as exc:
+            if any(code in str(exc) for code in ("403", "404")):
+                logger.info("Stocktwits stream unavailable for %s: %s", symbol, exc)
+                return None
+            logger.warning("Stocktwits fetch failed for %s: %s", symbol, exc)
+            return None
+        except Exception as exc:
+            logger.warning("Stocktwits fetch failed for %s: %s", symbol, exc)
+            return None
+
+    async def _fetch_reddit_entries(self, symbol: str) -> list[tuple[str, str, str]]:
+        client = self._client_for("reddit")
+        if client is None:
+            return []
+
+        entries: list[tuple[str, str, str]] = []
+        for subreddit in _REDDIT_FORUM_SUBREDDITS:
+            url = _reddit_search_url(symbol, subreddit)
+            try:
+                response = await client.request("GET", url)
+                response.raise_for_status()
+                entries.extend(
+                    _parse_reddit_atom_feed(response.text)[:_REDDIT_ENTRIES_PER_SUBREDDIT]
+                )
+            except FinpipeProviderDownError as exc:
+                logger.info("Reddit RSS skipped for %s/%s: %s", subreddit, symbol, exc)
+            except Exception as exc:
+                logger.warning("Reddit RSS failed for %s/%s: %s", subreddit, symbol, exc)
+        return entries
 
     async def close(self) -> None:
         for client in self._clients.values():
@@ -133,95 +239,61 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
         return final_list
 
     async def _fetch_stocktwits_sentiment(self, symbol: str) -> tuple[int, int]:
-        client = self._client_for("stocktwits")
-        if client is None:
-            return 0, 0
-
         cache_key = self._source_cache_key("stocktwits", symbol)
         cached = self._cache.get(cache_key)
         if cached is not None:
             return int(cached[0]), int(cached[1])
 
-        url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
-        try:
-            response = await client.request("GET", url)
-            data = response.json()
-            bullish = 0
-            bearish = 0
-            for msg in data.get("messages", []):
-                sentiment_data = (msg.get("entities", {}) or {}).get("sentiment", {}) or {}
-                if sentiment_data.get("basic") == "Bullish":
-                    bullish += 1
-                elif sentiment_data.get("basic") == "Bearish":
-                    bearish += 1
-            counts = (bullish, bearish)
-            self._cache.set(
-                cache_key,
-                list(counts),
-                self._provider_config.resolve_source_fetch_ttl("stocktwits"),
-            )
-            return counts
-        except Exception as exc:
-            logger.warning("Stocktwits analysis failed for %s: %s", symbol, exc)
+        data = await self._fetch_stocktwits_stream(symbol)
+        if data is None:
             return 0, 0
+
+        bullish = 0
+        bearish = 0
+        for msg in data.get("messages", []):
+            label = _stocktwits_message_sentiment(msg)
+            if label == "bullish":
+                bullish += 1
+            elif label == "bearish":
+                bearish += 1
+        counts = (bullish, bearish)
+        self._cache.set(
+            cache_key,
+            list(counts),
+            self._provider_config.resolve_source_fetch_ttl("stocktwits"),
+        )
+        return counts
 
     async def _fetch_reddit_sentiment(self, symbol: str) -> tuple[int, int]:
-        client = self._client_for("reddit")
-        if client is None:
-            return 0, 0
-
         cache_key = self._source_cache_key("reddit", symbol)
         cached = self._cache.get(cache_key)
         if cached is not None:
             return int(cached[0]), int(cached[1])
 
-        url = (
-            f"https://www.reddit.com/r/wallstreetbets/search.json"
-            f"?q={symbol}&restrict_sr=1&sort=new&limit=25"
+        bullish = 0
+        bearish = 0
+        for title, _, _ in await self._fetch_reddit_entries(symbol):
+            title_lower = title.lower()
+            if any(word in title_lower for word in _REDDIT_BULL_KEYWORDS):
+                bullish += 1
+            if any(word in title_lower for word in _REDDIT_BEAR_KEYWORDS):
+                bearish += 1
+        counts = (bullish, bearish)
+        self._cache.set(
+            cache_key,
+            list(counts),
+            self._provider_config.resolve_source_fetch_ttl("reddit"),
         )
-        source_cfg = self._provider_config.sources.reddit
-        user_agent = source_cfg.http.user_agent or "finpipe-scraper/1.0"
-        try:
-            response = await client.request("GET", url, headers={"User-Agent": user_agent})
-            data = response.json()
-            bullish = 0
-            bearish = 0
-            bull_keywords = ["call", "calls", "moon", "bull", "long", "buy"]
-            bear_keywords = ["put", "puts", "bear", "short", "sell", "tank", "drop"]
-            for post in data.get("data", {}).get("children", []):
-                title = post.get("data", {}).get("title", "").lower()
-                if any(word in title for word in bull_keywords):
-                    bullish += 1
-                if any(word in title for word in bear_keywords):
-                    bearish += 1
-            counts = (bullish, bearish)
-            self._cache.set(
-                cache_key,
-                list(counts),
-                self._provider_config.resolve_source_fetch_ttl("reddit"),
-            )
-            return counts
-        except Exception as exc:
-            logger.warning("Reddit analysis failed for %s: %s", symbol, exc)
-            return 0, 0
+        return counts
 
     async def _fetch_stocktwits_posts(self, symbol: str, limit: int = 30) -> list[SocialPost]:
-        client = self._client_for("stocktwits")
-        if client is None:
-            return []
-
         cache_key = self._source_cache_key("stocktwits", f"msgs_{symbol}_{limit}")
         cached = self._cache.get(cache_key)
         if cached is not None:
             return [SocialPost(**item) for item in cached]
 
-        url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
-        try:
-            response = await client.request("GET", url)
-            response.raise_for_status()
-            data = response.json()
-        except Exception as exc:
-            logger.warning("Social microblog fetch failed for %s: %s", symbol, exc)
+        data = await self._fetch_stocktwits_stream(symbol)
+        if data is None:
             return []
 
         posts: list[SocialPost] = []
@@ -249,43 +321,20 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
         return posts
 
     async def _fetch_reddit_posts(self, symbol: str, limit: int = 25) -> list[SocialPost]:
-        client = self._client_for("reddit")
-        if client is None:
-            return []
-
         cache_key = self._source_cache_key("reddit", f"posts_{symbol}_{limit}")
         cached = self._cache.get(cache_key)
         if cached is not None:
             return [SocialPost(**item) for item in cached]
 
-        source_cfg = self._provider_config.sources.reddit
-        user_agent = source_cfg.http.user_agent or "finpipe-scraper/1.0"
-        url = (
-            "https://www.reddit.com/r/wallstreetbets/search.json"
-            f"?q={symbol}&restrict_sr=1&sort=new&limit={limit}"
-        )
-        try:
-            response = await client.request("GET", url, headers={"User-Agent": user_agent})
-            response.raise_for_status()
-            data = response.json()
-        except Exception as exc:
-            logger.warning("Social forum fetch failed for %s: %s", symbol, exc)
-            return []
-
+        entries = await self._fetch_reddit_entries(symbol)
         posts: list[SocialPost] = []
-        for post in data.get("data", {}).get("children", []):
-            post_data = post.get("data", {})
-            title = (post_data.get("title") or "").strip()
-            permalink = post_data.get("permalink", "")
-            if not title or not permalink:
-                continue
-            description = post_data.get("selftext", title) or title
+        for title, post_url, description in entries[:limit]:
             posts.append(
                 SocialPost(
                     kind=SocialPostKind.FORUM,
                     text=description,
                     title=title,
-                    url=f"https://www.reddit.com{permalink}",
+                    url=post_url,
                 )
             )
         self._cache.set(

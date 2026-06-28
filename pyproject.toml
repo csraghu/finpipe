@@ -17,6 +17,7 @@ dependencies = [
     "cachetools>=5.3.0",
     "curl_cffi>=0.15.0",
     "pyarrow>=14.0.0",
+    "llmlingua>=0.2.2",
 ]
 
 [project.optional-dependencies]
@@ -89,12 +90,15 @@ project-excludes = [
     "**/__pycache__/**",
 ]
 use-ignore-files = false
-ignore-missing-imports = ["aioboto3", "botocore", "botocore.config", "botocore.exceptions"]
+ignore-missing-imports = ["aioboto3", "botocore", "botocore.config", "botocore.exceptions", "llmlingua"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["typecheck"]
+markers = [
+    "live: live network provider probes (pass --run-live or set FINPIPE_RUN_LIVE_TESTS=1)",
+]
 addopts = [
     "--cov=finpipe",
     "--cov-report=term-missing",

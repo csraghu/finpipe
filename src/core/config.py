@@ -18,8 +18,8 @@ _REQUIRED_KEYS: dict[str, tuple[str, str]] = {
 }
 
 
-DEFAULT_GROQ_MODEL = "llama3-8b-8192"
-DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
+DEFAULT_GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-70b-instruct"
 
 
@@ -102,6 +102,45 @@ class LlmTTLConfig(BaseModel):
     generate_response_sec: int = Field(default=3600, ge=0)
 
 
+class LlmPromptCompressionConfig(BaseModel):
+    """LLMLingua compression settings for all LLM provider adapters."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = True
+    target_ratio: float = Field(
+        default=0.5,
+        gt=0.0,
+        le=1.0,
+        description="LLMLingua retention rate (0.5 ≈ 50% token reduction)",
+    )
+    min_chars: int = Field(
+        default=400,
+        ge=0,
+        description="Skip compression when sanitized prompt is shorter than this",
+    )
+    device: str = Field(
+        default="cpu",
+        description="Device map passed to LLMLingua PromptCompressor",
+    )
+    model_name: str = Field(
+        default="microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
+        description="Hugging Face model id for LLMLingua-2 compression",
+    )
+
+
+class LlmPromptConfig(BaseModel):
+    """Provider-agnostic LLM input preparation (all ``ILLMProvider`` adapters)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    compression: LlmPromptCompressionConfig = Field(default_factory=LlmPromptCompressionConfig)
+
+
+class GeminiPromptCompressionConfig(LlmPromptCompressionConfig):
+    """Deprecated alias — use :class:`LlmPromptCompressionConfig`."""
+
+
 class HttpConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -152,7 +191,10 @@ class ScreenerSourcesConfig(BaseModel):
     finviz: ScreenerSourceConfig = Field(
         default_factory=lambda: ScreenerSourceConfig(
             rate_limits=RateLimitConfig(max_requests_per_second=2.0),
-            http=HttpConfig(transport="curl_cffi"),
+            http=HttpConfig(
+                transport="httpx",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            ),
         )
     )
     tradingview: ScreenerSourceConfig = Field(
@@ -202,12 +244,16 @@ class SentimentSourcesConfig(BaseModel):
     stocktwits: SentimentSourceConfig = Field(
         default_factory=lambda: SentimentSourceConfig(
             rate_limits=RateLimitConfig(max_requests_per_second=2.0),
+            http=HttpConfig(transport="curl_cffi"),
         )
     )
     reddit: SentimentSourceConfig = Field(
         default_factory=lambda: SentimentSourceConfig(
-            rate_limits=RateLimitConfig(max_requests_per_second=0.5, max_retries=5),
-            http=HttpConfig(transport="curl_cffi", user_agent="finpipe-scraper/1.0"),
+            rate_limits=RateLimitConfig(max_requests_per_second=0.5, max_retries=1),
+            http=HttpConfig(
+                transport="httpx",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            ),
         )
     )
 
@@ -490,6 +536,29 @@ class HealthConfig(BaseModel):
         min_length=1,
         description="Equity symbol used for metadata/options/intel probes",
     )
+    reddit_probe_symbol: str = Field(
+        default="TSLA",
+        min_length=1,
+        description=(
+            "Symbol for intel.reddit probe; high-discussion tickers work better than broad ETFs"
+        ),
+    )
+    finviz_probe_filter: str = Field(
+        default="geo_usa",
+        min_length=1,
+        description="Finviz screener filter for screener.finviz probe (geo_usa is reliably populated)",
+    )
+    llm_probe_prompt: str = Field(
+        default="Reply with exactly: OK",
+        min_length=1,
+        description="Minimal prompt sent to each LLM provider during health probes",
+    )
+    llm_probe_max_tokens: int = Field(
+        default=5,
+        ge=1,
+        le=64,
+        description="Max completion tokens for LLM health probes",
+    )
     probes: dict[str, HealthProbeConfig] = Field(
         default_factory=dict,
         description=(
@@ -520,6 +589,24 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
+def _migrate_legacy_llm_prompt_settings(data: dict[str, Any]) -> dict[str, Any]:
+    """Move deprecated ``providers.gemini.prompt_compression`` to ``llm_prompt.compression``."""
+    providers = data.get("providers")
+    if not isinstance(providers, dict):
+        return data
+    gemini = providers.get("gemini")
+    if not isinstance(gemini, dict) or "prompt_compression" not in gemini:
+        return data
+    migrated = dict(data)
+    llm_prompt = dict(migrated.get("llm_prompt") or {})
+    if "compression" not in llm_prompt:
+        llm_prompt["compression"] = gemini["prompt_compression"]
+    migrated["llm_prompt"] = llm_prompt
+    gemini_clean = {key: value for key, value in gemini.items() if key != "prompt_compression"}
+    migrated["providers"] = {**providers, "gemini": gemini_clean}
+    return migrated
+
+
 def _settings_discovery_paths() -> list[Path]:
     paths: list[Path] = [
         Path("finpipe.settings.json"),
@@ -542,12 +629,14 @@ class FinpipeConfig(BaseModel):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
     health: HealthConfig = Field(default_factory=HealthConfig)
+    llm_prompt: LlmPromptConfig = Field(default_factory=LlmPromptConfig)
 
     @model_validator(mode="before")
     @classmethod
     def apply_env_overrides(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
+        data = _migrate_legacy_llm_prompt_settings(data)
         if backend := os.getenv("FINPIPE_CACHE_BACKEND"):
             cache = dict(data.get("cache") or {})
             cache["cache_type"] = backend
@@ -602,8 +691,9 @@ class FinpipeConfig(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FinpipeConfig:
+        migrated = _migrate_legacy_llm_prompt_settings(dict(data))
         base = cls.from_env().model_dump()
-        return cls.model_validate(_deep_merge(base, data))
+        return cls.model_validate(_deep_merge(base, migrated))
 
     def to_dict(self, *, redact_secrets: bool = True) -> dict[str, Any]:
         """Return the resolved configuration as a plain dictionary."""

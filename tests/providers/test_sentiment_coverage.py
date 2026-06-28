@@ -42,7 +42,12 @@ async def test_sentiment_reddit_skips_empty_posts(config):
         respx.get(url__startswith="https://www.reddit.com").mock(
             return_value=httpx.Response(
                 200,
-                json={"data": {"children": [{"data": {"title": "", "permalink": ""}}]}},
+                text=(
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    '<feed xmlns="http://www.w3.org/2005/Atom">'
+                    '<entry><title></title><link href="" /></entry>'
+                    "</feed>"
+                ),
             )
         )
         assert await adapter._fetch_reddit_posts("AAPL") == []

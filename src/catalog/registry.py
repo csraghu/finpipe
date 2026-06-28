@@ -14,14 +14,14 @@ _PROBE_ACTIONS: dict[str, str] = {
     "macro.fred": "Fetch 7-day DGS10 series from FRED",
     "intel.google_news": "Fetch one news headline for probe_symbol",
     "intel.stocktwits": "Fetch one StockTwits post for probe_symbol",
-    "intel.reddit": "Fetch one Reddit post for probe_symbol",
+    "intel.reddit": "Fetch one Reddit post for reddit_probe_symbol (default TSLA)",
     "screener.yahoo_trending": "Call Yahoo trending screener",
     "screener.yahoo_predefined": "Call Yahoo day_gainers predefined screener (limit 5)",
     "screener.finviz": "Call Finviz ta_topgainers filter",
     "screener.tradingview": "Call TradingView scanner with limit=1",
-    "llm.groq": "Call Groq models.list API via describe()",
-    "llm.gemini": "Call Gemini models.list API via describe()",
-    "llm.nvidia": "Call NVIDIA NIM models.list API via describe()",
+    "llm.groq": "Minimal chat completion via generate_response()",
+    "llm.gemini": "Minimal chat completion via generate_response()",
+    "llm.nvidia": "Minimal chat completion via generate_response()",
 }
 
 CAPABILITY_CATALOG: tuple[CapabilityCatalogEntry, ...] = (

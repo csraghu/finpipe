@@ -102,13 +102,15 @@ async def test_composite_equity_options_chain_without_options_service(config):
 async def test_groq_cache_hit_and_failures(config):
     adapter = GroqAdapter(config)
     cached = {
-        "model_name": "llama3-8b-8192",
+        "model_name": "meta-llama/llama-4-scout-17b-16e-instruct",
         "content": "cached",
         "prompt_tokens": 1,
         "completion_tokens": 1,
         "raw_response": {},
     }
-    adapter._cache.set(f"groq_llama3-8b-8192_{hash('prompt')}", cached, 60)
+    adapter._cache.set(
+        f"groq_meta-llama/llama-4-scout-17b-16e-instruct_{hash('prompt')}", cached, 60
+    )
     resp = await adapter.generate_response("prompt")
     assert resp.content == "cached"
 

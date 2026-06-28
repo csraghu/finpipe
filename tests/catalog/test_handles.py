@@ -16,9 +16,7 @@ def test_adapter_key_for_branches():
 
 
 def test_catalog_adapter_key_metadata():
-    tradingview = next(
-        row for row in PROVIDER_CATALOG if row.provider_id == "tradingview"
-    )
+    tradingview = next(row for row in PROVIDER_CATALOG if row.provider_id == "tradingview")
     assert tradingview.adapter_key == "tradingview"
 
     finviz = next(row for row in PROVIDER_CATALOG if row.provider_id == "finviz")

@@ -22,13 +22,32 @@
   "health": {
     "enabled": true,
     "probe_symbol": "SPY",
+    "reddit_probe_symbol": "TSLA",
+    "finviz_probe_filter": "geo_usa",
+    "llm_probe_prompt": "Reply with exactly: OK",
+    "llm_probe_max_tokens": 5,
     "probes": {
       "equity.yahoo": { "enabled": true },
       "options.massive": { "enabled": true },
+      "options.yahoo": { "enabled": true },
+      "macro.fred": { "enabled": true },
+      "intel.google_news": { "enabled": true },
+      "intel.stocktwits": { "enabled": true },
+      "intel.reddit": { "enabled": true },
       "screener.yahoo_trending": { "enabled": true },
       "screener.tradingview": { "enabled": true },
-      "intel.google_news": { "enabled": true },
-      "llm.groq": { "enabled": true }
+      "llm.groq": { "enabled": true },
+      "llm.gemini": { "enabled": true },
+      "llm.nvidia": { "enabled": true }
+    }
+  },
+
+  "llm_prompt": {
+    "compression": {
+      "enabled": true,
+      "target_ratio": 0.5,
+      "min_chars": 400,
+      "device": "cpu"
     }
   },
 
@@ -226,6 +245,9 @@
             "circuit_breaker_failure_threshold": 5,
             "circuit_breaker_recovery_timeout_sec": 60.0,
             "backoff_multiplier": 1.5
+          },
+          "http": {
+            "transport": "curl_cffi"
           }
         },
         "reddit": {
@@ -239,6 +261,7 @@
             "backoff_multiplier": 2.0
           },
           "http": {
+            "transport": "curl_cffi",
             "user_agent": "finpipe-scraper/1.0"
           }
         }
@@ -247,7 +270,7 @@
 
     "groq": {
       "enabled": true,
-      "model": "llama3-8b-8192",
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
       "temperature": 0.3,
       "max_tokens": 512,
       "use_dynamic_model": false,
@@ -267,7 +290,7 @@
 
     "gemini": {
       "enabled": true,
-      "model": "gemini-1.5-flash",
+      "model": "gemini-3.1-flash-lite",
       "temperature": 0.3,
       "max_tokens": 512,
       "rate_limits": {

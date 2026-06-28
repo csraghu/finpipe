@@ -6,7 +6,7 @@ import polars as pl
 import pytest
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.exceptions import FinpipeConfigError
-from finpipe.core.models import SocialPostKind, TickerMetadata
+from finpipe.core.models import LLMResponse, SocialPostKind, TickerMetadata
 from finpipe.health import probes
 
 
@@ -56,8 +56,18 @@ async def test_probe_equity_alpha_vantage_missing_key(monkeypatch):
 async def test_probe_equity_alpha_vantage_connected():
     client = _client_with_config()
     _, av = _catalog_chain(client, "equity", "alpha_vantage")
-    av.get_metadata = AsyncMock(return_value=TickerMetadata(symbol="SPY"))
+    av.get_live_spot_price = AsyncMock(return_value=450.0)
     assert await probes.probe_equity_alpha_vantage(client, "SPY") is None
+
+
+@pytest.mark.asyncio
+async def test_probe_equity_alpha_vantage_degraded():
+    client = _client_with_config()
+    _, av = _catalog_chain(client, "equity", "alpha_vantage")
+    av.get_live_spot_price = AsyncMock(return_value=None)
+    assert (
+        await probes.probe_equity_alpha_vantage(client, "SPY") == "spot price unavailable for SPY"
+    )
 
 
 @pytest.mark.asyncio
@@ -73,8 +83,16 @@ async def test_probe_options_massive_missing_key(monkeypatch):
 async def test_probe_options_massive_degraded():
     client = _client_with_config()
     _, massive = _catalog_chain(client, "options", "massive")
-    massive.get_options_snapshot = AsyncMock(return_value=pl.DataFrame())
+    massive.fetch_options_snapshot = AsyncMock(return_value=[])
     assert await probes.probe_options_massive(client, "SPY") == "options snapshot empty"
+
+
+@pytest.mark.asyncio
+async def test_probe_options_massive_connected():
+    client = _client_with_config()
+    _, massive = _catalog_chain(client, "options", "massive")
+    massive.fetch_options_snapshot = AsyncMock(return_value=[{"symbol": "O:SPY"}])
+    assert await probes.probe_options_massive(client, "SPY") is None
 
 
 @pytest.mark.asyncio
@@ -124,8 +142,20 @@ async def test_probe_intel_reddit_degraded():
     intel = _catalog_chain(client, "intel")
     intel.get_social_posts = AsyncMock(return_value=[])
     result = await probes.probe_intel_reddit(client, "SPY")
-    assert result == "no reddit posts returned"
-    intel.get_social_posts.assert_awaited_once_with("SPY", limit=1, kind=SocialPostKind.FORUM)
+    assert result == "no reddit posts returned for TSLA"
+    intel.get_social_posts.assert_awaited_once_with("TSLA", limit=1, kind=SocialPostKind.FORUM)
+
+
+@pytest.mark.asyncio
+async def test_probe_intel_reddit_uses_configured_symbol():
+    from finpipe.core.config import FinpipeConfig
+
+    config = FinpipeConfig.from_dict({"health": {"reddit_probe_symbol": "NVDA"}})
+    client = _client_with_config(config)
+    intel = _catalog_chain(client, "intel")
+    intel.get_social_posts = AsyncMock(return_value=[MagicMock()])
+    assert await probes.probe_intel_reddit(client, "SPY") is None
+    intel.get_social_posts.assert_awaited_once_with("NVDA", limit=1, kind=SocialPostKind.FORUM)
 
 
 @pytest.mark.asyncio
@@ -152,8 +182,18 @@ async def test_probe_screener_finviz_degraded():
     screener = _catalog_chain(client, "screener")
     screener.get_fundamental = AsyncMock(return_value=[])
     assert await probes.probe_screener_finviz(client, "SPY") == (
-        "finviz screener returned no tickers"
+        "finviz screener returned no tickers (tried: geo_usa, ta_topgainers)"
     )
+    assert screener.get_fundamental.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_probe_screener_finviz_fallback_filter():
+    client = _client_with_config()
+    screener = _catalog_chain(client, "screener")
+    screener.get_fundamental = AsyncMock(side_effect=[[], ["AAPL"]])
+    assert await probes.probe_screener_finviz(client, "SPY") is None
+    assert screener.get_fundamental.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -177,32 +217,38 @@ async def test_probe_llm_groq_missing_key(monkeypatch):
 async def test_probe_llm_groq_degraded():
     client = _client_with_config()
     _, groq = _catalog_chain(client, "llm", "groq")
-    groq.describe = AsyncMock(return_value={"details": {"models": []}})
-    assert await probes.probe_llm_groq(client, "SPY") == "groq models list empty"
+    groq.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content=""))
+    assert await probes.probe_llm_groq(client, "SPY") == "groq returned empty completion"
+
+
+@pytest.mark.asyncio
+async def test_probe_llm_groq_connected():
+    client = _client_with_config()
+    _, groq = _catalog_chain(client, "llm", "groq")
+    groq.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content="OK"))
+    assert await probes.probe_llm_groq(client, "SPY") is None
+    groq.generate_response.assert_awaited_once()
+    call_kwargs = groq.generate_response.await_args.kwargs
+    assert call_kwargs["max_tokens"] == client.config.health.llm_probe_max_tokens
 
 
 @pytest.mark.asyncio
 async def test_probe_llm_gemini_connected():
     client = _client_with_config()
     _, gemini = _catalog_chain(client, "llm", "gemini")
-    gemini.describe = AsyncMock(return_value={"details": {"models": ["gemini"]}})
+    gemini.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content="OK"))
     assert await probes.probe_llm_gemini(client, "SPY") is None
+    call_kwargs = gemini.generate_response.await_args.kwargs
+    max_out = call_kwargs["generationConfig"]["maxOutputTokens"]
+    assert max_out == client.config.health.llm_probe_max_tokens
 
 
 @pytest.mark.asyncio
-async def test_probe_llm_nvidia_degraded(monkeypatch):
+async def test_probe_llm_nvidia_degraded():
     client = _client_with_config()
     _, nvidia = _catalog_chain(client, "llm", "nvidia")
-    nvidia.describe = AsyncMock(return_value={"details": {"models": []}})
-    assert await probes.probe_llm_nvidia(client, "SPY") == "nvidia models list empty"
-
-
-@pytest.mark.asyncio
-async def test_probe_options_massive_connected():
-    client = _client_with_config()
-    _, massive = _catalog_chain(client, "options", "massive")
-    massive.get_options_snapshot = AsyncMock(return_value=pl.DataFrame({"x": [1]}))
-    assert await probes.probe_options_massive(client, "SPY") is None
+    nvidia.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content=""))
+    assert await probes.probe_llm_nvidia(client, "SPY") == "nvidia returned empty completion"
 
 
 @pytest.mark.asyncio

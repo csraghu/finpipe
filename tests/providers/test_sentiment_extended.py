@@ -47,17 +47,22 @@ async def test_sentiment_google_news_failure_returns_empty(config):
 @pytest.mark.asyncio
 async def test_sentiment_reddit_sentiment_and_posts(config):
     adapter = NewsSentimentAdapter(config)
-    payload = {
-        "data": {
-            "children": [
-                {"data": {"title": "AAPL calls moon", "selftext": "", "permalink": "/r/wsb/1"}},
-                {"data": {"title": "puts tank", "selftext": "", "permalink": "/r/wsb/2"}},
-            ]
-        }
-    }
+    rss_mock = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>AAPL calls moon</title>
+    <link href="https://www.reddit.com/r/wsb/1" />
+    <content>AAPL calls moon</content>
+  </entry>
+  <entry>
+    <title>puts tank</title>
+    <link href="https://www.reddit.com/r/wsb/2" />
+    <content>puts tank</content>
+  </entry>
+</feed>"""
     with respx.mock:
         respx.get(url__startswith="https://www.reddit.com").mock(
-            return_value=httpx.Response(200, json=payload)
+            return_value=httpx.Response(200, text=rss_mock)
         )
         bullish, bearish = await adapter._fetch_reddit_sentiment("AAPL")
         assert bullish >= 1
@@ -107,7 +112,13 @@ async def test_sentiment_get_sentiment_score_aggregates(config):
         respx.get(url__startswith="https://www.reddit.com").mock(
             return_value=httpx.Response(
                 200,
-                json={"data": {"children": [{"data": {"title": "calls moon", "permalink": "/x"}}]}},
+                text=(
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    '<feed xmlns="http://www.w3.org/2005/Atom">'
+                    "<entry><title>calls moon</title>"
+                    '<link href="https://www.reddit.com/r/wsb/x" /></entry>'
+                    "</feed>"
+                ),
             )
         )
         score = await adapter.get_sentiment_score("AAPL")

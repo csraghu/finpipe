@@ -540,8 +540,42 @@ Optional lightweight checks that providers respond (similar to aksh `provider_co
 | Method | Returns |
 |--------|---------|
 | `list_probe_keys()` | `list[str]` — probe keys that will run |
-| `check(probe_key)` | `ProbeResult` — one probe |
+| `check(probe_key)` | `ProbeResult` — one probe (`ok` / `http_status` 200 = success) |
 | `check_all()` | `HealthReport` — all configured probes |
+| `ping()` | Alias for `check_all()` — app health-check entry point |
+| `ping_probe(probe_key)` | Alias for `check(probe_key)` — single provider endpoint |
+
+Top-level helpers (also on `import finpipe`):
+
+| Function | Returns |
+|----------|---------|
+| `run_health_check(config=None, probe_keys=None)` | `HealthReport` — use `report.http_status` (200/503) for HTTP handlers |
+| `run_probe(probe_key, config=None)` | `ProbeResult` — one provider |
+
+`Client.health_check()` runs all probes and returns `HealthReport`.
+
+```python
+from finpipe import Client, run_health_check
+
+async with Client() as client:
+    report = await client.health_check()
+    assert report.http_status == 200  # all actionable probes succeeded
+
+# FastAPI example
+report = await run_health_check()
+return JSONResponse(report.to_dict(), status_code=report.http_status)
+```
+
+Live integration tests (real network, symbol `SPY`):
+
+```powershell
+# Recommended — no env var needed
+pytest tests/integration/test_live_provider_probes.py --run-live --no-cov -v
+
+# Or env var (PowerShell — do not use CMD ``set`` in PowerShell)
+$env:FINPIPE_RUN_LIVE_TESTS = '1'
+pytest tests/integration/test_live_provider_probes.py -m live --no-cov -v
+```
 
 Configure in `finpipe.settings.json`:
 
@@ -549,6 +583,8 @@ Configure in `finpipe.settings.json`:
 "health": {
   "enabled": true,
   "probe_symbol": "SPY",
+  "reddit_probe_symbol": "TSLA",
+  "finviz_probe_filter": "geo_usa",
   "probes": {
     "equity.yahoo": { "enabled": true },
     "screener.yahoo_trending": { "enabled": true },
@@ -557,7 +593,11 @@ Configure in `finpipe.settings.json`:
 }
 ```
 
-When `probes` is empty, all probes for **enabled** providers run. Probe keys use `{capability}.{provider_or_source}` (e.g. `intel.google_news`, `screener.finviz`, `options.massive`).
+When `probes` is empty, all probes for **enabled** providers run. Probe keys use `{capability}.{provider_or_source}` (e.g. `intel.google_news`, `screener.finviz`, `options.massive`, `llm.groq`, `llm.gemini`, `llm.nvidia`).
+
+`reddit_probe_symbol` (default `TSLA`) and `finviz_probe_filter` (default `geo_usa`) tune probes that need livelier inputs than `probe_symbol` (`SPY`). Finviz falls back to `ta_topgainers` when the primary filter is empty.
+
+LLM probes call `generate_response()` with a minimal prompt (`health.llm_probe_prompt`, default `"Reply with exactly: OK"`) and `health.llm_probe_max_tokens` (default `5`) to verify the chat API returns HTTP 200 with content — not just a models list.
 
 `ProbeResult.status` is one of: `connected`, `degraded`, `unconfigured`, `error`, `disabled`, `skipped`.
 
@@ -683,7 +723,9 @@ Sources configured under `providers.sentiment.sources` (`google_news`, `stocktwi
 | `generate_response(prompt, model=None, **kwargs)` | `GROQ_API_KEY` / `GEMINI_API_KEY` / `NVIDIA_API_KEY` |
 | `describe()` | Same — includes remote model list in `details.models`; used by `client.health` LLM probes |
 
-Default model when `model` is omitted: `providers.groq.model` (`llama3-8b-8192`), `providers.gemini.model` (`gemini-1.5-flash`), or `providers.nvidia.model` (`meta/llama-3.1-70b-instruct`). Per-call `model=` overrides the settings default.
+Default model when `model` is omitted: `providers.groq.model` (`meta-llama/llama-4-scout-17b-16e-instruct`), `providers.gemini.model` (`gemini-3.1-flash-lite`), or `providers.nvidia.model` (`meta/llama-3.1-70b-instruct`). Per-call `model=` overrides the settings default.
+
+**LLM prompt preparation:** All ``ILLMProvider`` adapters inherit ``LlmProviderBase``, which automatically (1) runs `sanitize_llm_text()` to strip HTML/emojis/markdown noise, then (2) compresses with **LLMLingua** (core dependency) using sentiment-aware conditioning so fear/greed/panic language is retained. Configure via top-level `llm_prompt.compression` (`enabled`, `target_ratio`, `min_chars`, `device`) — not per vendor.
 
 ---
 

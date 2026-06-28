@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from finpipe.core.config import FinpipeConfig
-from finpipe.core.exceptions import FinpipeProviderDownError
+from finpipe.core.exceptions import FinpipeProviderDownError, FinpipeRateLimitExceededError
 from finpipe.core.interfaces import ILLMProvider, IProviderDescribe
 from finpipe.core.models import LLMResponse
 from finpipe.core.registry import BuildContext, register_provider
@@ -10,11 +10,12 @@ from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.limiter import estimate_llm_token_usage
 from finpipe.network.resilience import create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor
+from finpipe.providers.llm_base import LlmProviderBase
 
 logger = logging.getLogger(__name__)
 
 
-class GroqAdapter(ILLMProvider, IProviderDescribe):
+class GroqAdapter(LlmProviderBase, ILLMProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.groq
@@ -60,6 +61,7 @@ class GroqAdapter(ILLMProvider, IProviderDescribe):
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any
     ) -> LLMResponse:
+        prompt = await self.prepare_prompt(prompt)
         model_name = model or self._provider_config.model
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {
@@ -85,9 +87,11 @@ class GroqAdapter(ILLMProvider, IProviderDescribe):
                 token_estimate=estimated,
             )
             data = response.json()
+        except (FinpipeProviderDownError, FinpipeRateLimitExceededError):
+            raise
         except Exception as exc:
             logger.error("Groq API request failed: %s", exc)
-            raise FinpipeProviderDownError("Failed to communicate with Groq API") from exc
+            raise FinpipeProviderDownError(f"Failed to communicate with Groq API: {exc}") from exc
 
         choices = data.get("choices", [])
         if not choices:

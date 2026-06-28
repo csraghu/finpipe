@@ -12,13 +12,13 @@ from finpipe.providers.nvidia import NvidiaAdapter
 async def test_gemini_cache_and_failures(config):
     adapter = GeminiAdapter(config)
     cached = {
-        "model_name": "gemini-1.5-flash",
+        "model_name": "gemini-3.1-flash-lite",
         "content": "cached",
         "prompt_tokens": 1,
         "completion_tokens": 1,
         "raw_response": {},
     }
-    adapter._cache.set(f"gemini_gemini-1.5-flash_{hash('prompt')}", cached, 60)
+    adapter._cache.set(f"gemini_gemini-3.1-flash-lite_{hash('prompt')}", cached, 60)
     assert (await adapter.generate_response("prompt")).content == "cached"
 
     with respx.mock:

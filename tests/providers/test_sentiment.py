@@ -3,7 +3,7 @@ import pytest
 import respx
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.models import SocialPostKind
-from finpipe.providers.sentiment import NewsSentimentAdapter
+from finpipe.providers.sentiment import NewsSentimentAdapter, _stocktwits_message_sentiment
 
 
 @pytest.mark.asyncio
@@ -33,6 +33,7 @@ async def test_news_sentiment_adapter_score(config):
                 "sentiment": {
                     "sources": {
                         "reddit": {"enabled": False},
+                        "stocktwits": {"http": {"transport": "httpx"}},
                     }
                 }
             }
@@ -65,7 +66,10 @@ async def test_sentiment_source_ttl_caches_fetch(config):
                 "sentiment": {
                     "sources": {
                         "reddit": {"enabled": False},
-                        "stocktwits": {"ttls": {"fetch_sec": 3600}},
+                        "stocktwits": {
+                            "http": {"transport": "httpx"},
+                            "ttls": {"fetch_sec": 3600},
+                        },
                     }
                 }
             }
@@ -88,25 +92,43 @@ async def test_sentiment_source_ttl_caches_fetch(config):
 @pytest.mark.asyncio
 async def test_news_sentiment_adapter_social_posts(config):
     adapter = NewsSentimentAdapter(config)
-    json_mock = {
-        "data": {
-            "children": [
-                {
-                    "data": {
-                        "title": "AAPL moon",
-                        "selftext": "calls",
-                        "permalink": "/r/wsb/comments/abc/aapl/",
-                    }
-                }
-            ]
-        }
-    }
+    rss_mock = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>AAPL moon</title>
+    <link href="https://www.reddit.com/r/wallstreetbets/comments/abc/aapl/" />
+    <content>calls</content>
+  </entry>
+</feed>"""
 
     with respx.mock:
         respx.get(url__startswith="https://www.reddit.com").mock(
-            return_value=httpx.Response(200, json=json_mock)
+            return_value=httpx.Response(200, text=rss_mock)
         )
         posts = await adapter.get_social_posts("AAPL", limit=5, kind=SocialPostKind.FORUM)
-        assert len(posts) == 1
+        assert len(posts) >= 1
         assert posts[0].kind == SocialPostKind.FORUM
         assert posts[0].title == "AAPL moon"
+
+
+def test_stocktwits_legacy_sentiment_class_path():
+    assert _stocktwits_message_sentiment({"sentiment": {"class": "Bullish"}}) == "bullish"
+    assert (
+        _stocktwits_message_sentiment({"entities": {"sentiment": {"basic": "Bearish"}}})
+        == "bearish"
+    )
+
+
+@pytest.mark.asyncio
+async def test_stocktwits_sentiment_uses_legacy_class_field(config):
+    adapter = NewsSentimentAdapter(config)
+    with respx.mock:
+        respx.get(url__startswith="https://api.stocktwits.com").mock(
+            return_value=httpx.Response(
+                200,
+                json={"messages": [{"sentiment": {"class": "bullish"}}]},
+            )
+        )
+        bullish, bearish = await adapter._fetch_stocktwits_sentiment("AAPL")
+        assert bullish == 1
+        assert bearish == 0

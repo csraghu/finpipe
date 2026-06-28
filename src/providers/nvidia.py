@@ -10,13 +10,14 @@ from finpipe.network.cache_manager import resolve_cache_backend
 from finpipe.network.limiter import estimate_llm_token_usage
 from finpipe.network.resilience import create_resilient_http_client
 from finpipe.providers.descriptor import provider_descriptor
+from finpipe.providers.llm_base import LlmProviderBase
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
-class NvidiaAdapter(ILLMProvider, IProviderDescribe):
+class NvidiaAdapter(LlmProviderBase, ILLMProvider, IProviderDescribe):
     def __init__(self, config: FinpipeConfig):
         self._config = config
         self._provider_config = config.providers.nvidia
@@ -61,6 +62,7 @@ class NvidiaAdapter(ILLMProvider, IProviderDescribe):
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any
     ) -> LLMResponse:
+        prompt = await self.prepare_prompt(prompt)
         model_name = model or self._provider_config.model
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {
