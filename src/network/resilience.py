@@ -139,7 +139,14 @@ class ResilientHttpClient:
                 self._http.timeout_read_sec,
                 connect=self._http.timeout_connect_sec,
             )
-            self._httpx_client = httpx.AsyncClient(timeout=timeout, follow_redirects=True)
+            httpx_headers: dict[str, str] = {}
+            if self._http.user_agent:
+                httpx_headers["User-Agent"] = self._http.user_agent
+            self._httpx_client = httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+                headers=httpx_headers or None,
+            )
 
     async def close(self) -> None:
         if self._httpx_client is not None:
