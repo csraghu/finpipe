@@ -1,9 +1,16 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
-from finpipe.core.llm_compress import compress_llm_text_for_sentiment
+from finpipe.core.llm_compress import compress_llm_text_for_sentiment, _chunk_text
 from finpipe.core.llm_prompt import prepare_llm_prompt, prepare_gemini_prompt
 from finpipe.core.config import LlmPromptCompressionConfig
+
+def test_chunk_text():
+    text = "Word. " * 400
+    chunks = _chunk_text(text, max_words=300)
+    assert len(chunks) == 2
+    assert len(chunks[0].split()) == 300
+    assert len(chunks[1].split()) == 100
 
 @pytest.mark.asyncio
 async def test_compress_llm_text_for_sentiment_empty():

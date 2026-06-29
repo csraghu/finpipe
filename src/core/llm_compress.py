@@ -16,6 +16,32 @@ SENTIMENT_COMPRESSION_QUESTION = (
 
 DEFAULT_LLMLINGUA_MODEL = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
 
+def _chunk_text(text: str, max_words: int = 300) -> list[str]:
+    paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+    chunks = []
+    current_chunk = []
+    current_length = 0
+
+    for p in paragraphs:
+        p_len = len(p.split())
+        if current_length + p_len > max_words and current_chunk:
+            chunks.append("\n".join(current_chunk))
+            current_chunk = []
+            current_length = 0
+        
+        if p_len > max_words:
+            words = p.split()
+            for i in range(0, len(words), max_words):
+                chunks.append(" ".join(words[i:i + max_words]))
+        else:
+            current_chunk.append(p)
+            current_length += p_len
+            
+    if current_chunk:
+        chunks.append("\n".join(current_chunk))
+        
+    return chunks
+
 async def compress_llm_text_for_sentiment(
     text: str,
     *,
@@ -29,17 +55,22 @@ async def compress_llm_text_for_sentiment(
     if not text.strip():
         return text
 
-    if endpoint_url:
-        import os
+    if not endpoint_url:
+        return text
 
-        headers = {}
-        api_key = os.environ.get("PROMPRESS_API_KEY") or os.environ.get("HF_TOKEN")
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+    import os
+    headers = {}
+    api_key = os.environ.get("PROMPRESS_API_KEY") or os.environ.get("HF_TOKEN")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
+    chunks = _chunk_text(text, max_words=300)
+    compressed_chunks = []
+
+    for chunk in chunks:
         try:
             payload = {
-                "text": text,
+                "text": chunk,
                 "target_ratio": target_ratio,
                 "model_name": model_name,
             }
@@ -55,8 +86,11 @@ async def compress_llm_text_for_sentiment(
 
             compressed = data.get("compressed_prompt")
             if isinstance(compressed, str) and compressed.strip():
-                return compressed
+                compressed_chunks.append(compressed)
+            else:
+                compressed_chunks.append(chunk)
         except Exception as exc:
-            logger.warning("Remote LLMLingua compression failed, returning uncompressed text: %s", exc)
+            logger.warning("Remote LLMLingua compression failed for chunk, keeping uncompressed text: %s", exc)
+            compressed_chunks.append(chunk)
 
-    return text
+    return "\n".join(compressed_chunks)
