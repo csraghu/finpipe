@@ -235,13 +235,29 @@ def test_build_massive_factory(config):
 
 @pytest.mark.asyncio
 async def test_probe_empty_result_paths(config):
+    from finpipe.core.config import AlphaVantageConfig, FredConfig, MassiveConfig
+    av_cfg = AlphaVantageConfig(api_key="test", enabled=True)
+    mas_cfg = MassiveConfig(api_key="test", enabled=True)
+    fred_cfg = FredConfig(api_key="test", enabled=True)
+    new_providers = config.providers.model_copy(update={
+        "alpha_vantage": av_cfg,
+        "massive": mas_cfg,
+        "fred": fred_cfg
+    })
+    config = config.model_copy(update={"providers": new_providers})
+
     from finpipe.client import Client
 
     async with Client(config) as client:
-        client._registry.get("alpha_vantage").get_metadata = AsyncMock(
+        client._registry.get("yahoo").get_metadata = AsyncMock(
             return_value=TickerMetadata(symbol="")
         )
-        assert await probes.probe_equity_alpha_vantage(client, "SPY") == "metadata missing symbol"
+        assert await probes.probe_equity_yahoo(client, "SPY") == "metadata missing symbol"
+
+        client._registry.get("alpha_vantage").get_live_spot_price = AsyncMock(
+            return_value=None
+        )
+        assert await probes.probe_equity_alpha_vantage(client, "SPY") == "spot price unavailable for SPY"
 
         client._registry.get("sentiment").get_social_posts = AsyncMock(return_value=[])
         assert await probes.probe_intel_stocktwits(client, "SPY") == "no stocktwits posts returned"
@@ -258,12 +274,19 @@ async def test_probe_empty_result_paths(config):
             == "tradingview screener returned no tickers"
         )
 
-        empty_models = {"details": {"models": []}}
-        client._registry.get("gemini").describe = AsyncMock(return_value=empty_models)
-        assert await probes.probe_llm_gemini(client, "SPY") == "gemini models list empty"
+        from unittest.mock import patch
 
-        client._registry.get("nvidia").describe = AsyncMock(return_value=empty_models)
-        assert await probes.probe_llm_nvidia(client, "SPY") == "nvidia models list empty"
+        from finpipe.core.models import LLMResponse
+        from finpipe.providers.gemini import GeminiAdapter
+        from finpipe.providers.nvidia import NvidiaAdapter
+
+        with patch.object(GeminiAdapter, "generate_response", AsyncMock(return_value=LLMResponse(content="", model_name="test"))):
+            assert await probes.probe_llm_gemini(client, "SPY") == "gemini returned empty completion"
+
+        with patch.object(NvidiaAdapter, "generate_response", AsyncMock(return_value=LLMResponse(content="", model_name="test"))):
+            assert await probes.probe_llm_nvidia(client, "SPY") == "nvidia returned empty completion"
+
+
 
 
 @pytest.mark.asyncio

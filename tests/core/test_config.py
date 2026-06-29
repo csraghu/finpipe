@@ -40,16 +40,16 @@ def test_sentiment_per_source_rate_limits(config):
     sources = config.providers.sentiment.sources
     assert sources.google_news.rate_limits.max_requests_per_second == 1.0
     assert sources.stocktwits.rate_limits.max_requests_per_second == 2.0
-    assert sources.reddit.rate_limits.max_requests_per_second == 0.5
-    assert sources.reddit.rate_limits.max_retries == 1
+    assert sources.reddit.rate_limits.max_requests_per_second == 1.5
+    assert sources.reddit.rate_limits.max_retries == 2
 
 
 def test_sentiment_scraping_sources_default_curl_cffi():
     sources = FinpipeConfig().providers.sentiment.sources
     assert sources.google_news.http.transport == "curl_cffi"
     assert sources.stocktwits.http.transport == "curl_cffi"
-    assert sources.reddit.http.transport == "curl_cffi"
-    assert sources.reddit.rate_limits.max_retries == 1
+    assert sources.reddit.http.transport == "httpx"
+    assert sources.reddit.rate_limits.max_retries == 2
 
 
 def test_sentiment_per_source_merge_from_dict():

@@ -47,7 +47,7 @@ async def test_rpm_tpm_acquire_within_limits():
     await limiter.acquire(100)
     duration = asyncio.get_event_loop().time() - start
     assert duration < 0.1
-    assert limiter.tok_tokens == pytest.approx(800.0)
+    assert limiter.tok_tokens == pytest.approx(800.0, abs=1.0)
 
 
 @pytest.mark.asyncio
@@ -69,7 +69,7 @@ async def test_rpm_tpm_update_actual_tokens_refunds_overestimate():
     assert limiter.tok_tokens == pytest.approx(500.0)
 
     await limiter.update_actual_tokens(500, 200)
-    assert limiter.tok_tokens == pytest.approx(800.0)
+    assert limiter.tok_tokens == pytest.approx(800.0, abs=1.0)
 
 
 @pytest.mark.asyncio

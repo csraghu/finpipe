@@ -46,23 +46,27 @@ async def test_sentiment_google_news_failure_returns_empty(config):
 
 @pytest.mark.asyncio
 async def test_sentiment_reddit_sentiment_and_posts(config):
+    from finpipe.core.config import RedditSourceConfig
+
+    reddit_cfg = RedditSourceConfig(client_id="test_id", client_secret="test_secret", enabled=True)
+    new_sources = config.providers.sentiment.sources.model_copy(update={"reddit": reddit_cfg})
+    new_sentiment = config.providers.sentiment.model_copy(update={"sources": new_sources})
+    new_providers = config.providers.model_copy(update={"sentiment": new_sentiment})
+    config = config.model_copy(update={"providers": new_providers})
     adapter = NewsSentimentAdapter(config)
-    rss_mock = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <entry>
-    <title>AAPL calls moon</title>
-    <link href="https://www.reddit.com/r/wsb/1" />
-    <content>AAPL calls moon</content>
-  </entry>
-  <entry>
-    <title>puts tank</title>
-    <link href="https://www.reddit.com/r/wsb/2" />
-    <content>puts tank</content>
-  </entry>
-</feed>"""
     with respx.mock:
-        respx.get(url__startswith="https://www.reddit.com").mock(
-            return_value=httpx.Response(200, text=rss_mock)
+        respx.post("https://www.reddit.com/api/v1/access_token").mock(
+            return_value=httpx.Response(200, json={"access_token": "token"})
+        )
+        respx.get(url__startswith="https://oauth.reddit.com").mock(
+            return_value=httpx.Response(200, json={
+                "data": {
+                    "children": [
+                        {"data": {"title": "AAPL calls moon", "selftext": "bullish post", "permalink": "/r/wsb/1"}},
+                        {"data": {"title": "puts tank", "selftext": "bearish post", "permalink": "/r/wsb/2"}},
+                    ]
+                }
+            })
         )
         bullish, bearish = await adapter._fetch_reddit_sentiment("AAPL")
         assert bullish >= 1

@@ -127,6 +127,10 @@ class LlmPromptCompressionConfig(BaseModel):
         default="microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
         description="Hugging Face model id for LLMLingua-2 compression",
     )
+    endpoint_url: str | None = Field(
+        default=None,
+        description="Optional HTTP URL hosting the compression API. Bypasses local LLMLingua inference if set.",
+    )
 
 
 class LlmPromptConfig(BaseModel):
@@ -232,6 +236,13 @@ class SentimentSourceConfig(BaseModel):
     ttls: SentimentSourceTTLConfig = Field(default_factory=SentimentSourceTTLConfig)
 
 
+class RedditSourceConfig(SentimentSourceConfig):
+    """Reddit OAuth API configuration."""
+
+    client_id: str | None = Field(default_factory=lambda: os.getenv("REDDIT_CLIENT_ID"))
+    client_secret: str | None = Field(default_factory=lambda: os.getenv("REDDIT_CLIENT_SECRET"))
+
+
 class SentimentSourcesConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -247,12 +258,12 @@ class SentimentSourcesConfig(BaseModel):
             http=HttpConfig(transport="curl_cffi"),
         )
     )
-    reddit: SentimentSourceConfig = Field(
-        default_factory=lambda: SentimentSourceConfig(
-            rate_limits=RateLimitConfig(max_requests_per_second=0.5, max_retries=1),
+    reddit: RedditSourceConfig = Field(
+        default_factory=lambda: RedditSourceConfig(
+            rate_limits=RateLimitConfig(max_requests_per_second=1.5, max_retries=2),
             http=HttpConfig(
                 transport="httpx",
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                user_agent="python:finpipe:v0.5.6",
             ),
         )
     )

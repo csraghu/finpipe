@@ -90,20 +90,41 @@ async def test_sentiment_source_ttl_caches_fetch(config):
 
 
 @pytest.mark.asyncio
-async def test_news_sentiment_adapter_social_posts(config):
+async def test_news_sentiment_adapter_social_posts():
+    from finpipe.core.config import FinpipeConfig
+    config = FinpipeConfig.from_dict({
+        "providers": {
+            "sentiment": {
+                "sources": {
+                    "reddit": {
+                        "client_id": "test",
+                        "client_secret": "test"
+                    }
+                }
+            }
+        }
+    })
     adapter = NewsSentimentAdapter(config)
-    rss_mock = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <entry>
-    <title>AAPL moon</title>
-    <link href="https://www.reddit.com/r/wallstreetbets/comments/abc/aapl/" />
-    <content>calls</content>
-  </entry>
-</feed>"""
+    json_mock = {
+        "data": {
+            "children": [
+                {
+                    "data": {
+                        "title": "AAPL moon",
+                        "permalink": "/r/wallstreetbets/comments/abc/aapl/",
+                        "selftext": "calls"
+                    }
+                }
+            ]
+        }
+    }
 
     with respx.mock:
-        respx.get(url__startswith="https://www.reddit.com").mock(
-            return_value=httpx.Response(200, text=rss_mock)
+        respx.post("https://www.reddit.com/api/v1/access_token").mock(
+            return_value=httpx.Response(200, json={"access_token": "mocked"})
+        )
+        respx.get(url__startswith="https://oauth.reddit.com").mock(
+            return_value=httpx.Response(200, json=json_mock)
         )
         posts = await adapter.get_social_posts("AAPL", limit=5, kind=SocialPostKind.FORUM)
         assert len(posts) >= 1

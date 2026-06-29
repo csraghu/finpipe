@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from finpipe.core.llm_compress import (
     compress_llm_text_for_sentiment,
-    is_llmlingua_available,
 )
 from finpipe.core.llm_sanitize import sanitize_llm_text
 
@@ -27,8 +26,8 @@ async def prepare_llm_prompt(
         return prepared
     if len(prepared) < compression.min_chars:
         return prepared
-    if not is_llmlingua_available():
-        logger.debug("LLM prompt compression enabled but llmlingua import failed")
+    if not compression.endpoint_url:
+        logger.warning("Prompt compression enabled but no endpoint_url configured. Skipping compression.")
         return prepared
     try:
         return await compress_llm_text_for_sentiment(
@@ -36,6 +35,7 @@ async def prepare_llm_prompt(
             target_ratio=compression.target_ratio,
             device=compression.device,
             model_name=compression.model_name,
+            endpoint_url=compression.endpoint_url,
         )
     except Exception as exc:
         logger.warning(

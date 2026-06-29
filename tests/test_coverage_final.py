@@ -171,7 +171,17 @@ async def test_alpha_vantage_describe_and_close(config):
 @pytest.mark.asyncio
 async def test_probe_success_paths(config):  # noqa: C901
     from finpipe.client import Client
+    from finpipe.core.config import AlphaVantageConfig, FredConfig, MassiveConfig
     from finpipe.core.models import TickerMetadata
+    av_cfg = AlphaVantageConfig(api_key="test", enabled=True)
+    mas_cfg = MassiveConfig(api_key="test", enabled=True)
+    fred_cfg = FredConfig(api_key="test", enabled=True)
+    new_providers = config.providers.model_copy(update={
+        "alpha_vantage": av_cfg,
+        "massive": mas_cfg,
+        "fred": fred_cfg
+    })
+    config = config.model_copy(update={"providers": new_providers})
 
     async with Client(config) as client:
         for key in probes.PROBE_RUNNERS:
@@ -180,12 +190,12 @@ async def test_probe_success_paths(config):  # noqa: C901
                     return_value=TickerMetadata(symbol="SPY")
                 )
             if key == "equity.alpha_vantage":
-                client._registry.get("alpha_vantage").get_metadata = AsyncMock(
-                    return_value=TickerMetadata(symbol="SPY")
+                client._registry.get("alpha_vantage").get_live_spot_price = AsyncMock(
+                    return_value=150.0
                 )
             if key == "options.massive":
-                client._registry.get("massive").get_options_snapshot = AsyncMock(
-                    return_value=pd.DataFrame({"x": [1]})
+                client._registry.get("massive").fetch_options_snapshot = AsyncMock(
+                    return_value=[object()]
                 )
             if key == "options.yahoo":
                 client._registry.get("yahoo").get_options_snapshot = AsyncMock(
@@ -215,5 +225,15 @@ async def test_probe_success_paths(config):  # noqa: C901
                     return_value={"details": {"models": ["m"]}}
                 )
 
-        for key in probes.PROBE_RUNNERS:
-            assert await probes.PROBE_RUNNERS[key](client, "SPY") is None
+        from unittest.mock import patch
+
+        from finpipe.core.models import LLMResponse
+        from finpipe.providers.gemini import GeminiAdapter
+        from finpipe.providers.groq import GroqAdapter
+        from finpipe.providers.nvidia import NvidiaAdapter
+
+        with patch.object(GeminiAdapter, "generate_response", AsyncMock(return_value=LLMResponse(content="test", model_name="test"))), \
+             patch.object(GroqAdapter, "generate_response", AsyncMock(return_value=LLMResponse(content="test", model_name="test"))), \
+             patch.object(NvidiaAdapter, "generate_response", AsyncMock(return_value=LLMResponse(content="test", model_name="test"))):
+            for key in probes.PROBE_RUNNERS:
+                assert await probes.PROBE_RUNNERS[key](client, "SPY") is None

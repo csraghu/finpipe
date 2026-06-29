@@ -7,6 +7,8 @@ def test_probe_result_to_dict_includes_optional_fields():
     assert payload == {
         "key": "equity.yahoo",
         "status": "connected",
+        "ok": True,
+        "http_status": 200,
         "message": "ok",
         "latency_ms": 12.35,
     }
@@ -14,7 +16,12 @@ def test_probe_result_to_dict_includes_optional_fields():
 
 def test_probe_result_to_dict_omits_none_fields():
     result = ProbeResult("equity.yahoo", "skipped")
-    assert result.to_dict() == {"key": "equity.yahoo", "status": "skipped"}
+    assert result.to_dict() == {
+        "key": "equity.yahoo",
+        "status": "skipped",
+        "ok": False,
+        "http_status": 204,
+    }
 
 
 def test_health_report_properties_and_to_dict():

@@ -16,7 +16,7 @@ from finpipe.providers.descriptor import provider_descriptor, settings_snapshot
 
 logger = logging.getLogger(__name__)
 
-_REDDIT_ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
+
 _REDDIT_BULL_KEYWORDS = ("call", "calls", "moon", "bull", "long", "buy")
 _REDDIT_BEAR_KEYWORDS = ("put", "puts", "bear", "short", "sell", "tank", "drop")
 _REDDIT_FORUM_SUBREDDITS = ("wallstreetbets", "stocks", "investing")
@@ -33,7 +33,7 @@ _STOCKTWITS_HEADERS = {
 
 def _reddit_search_url(symbol: str, subreddit: str) -> str:
     return (
-        f"https://www.reddit.com/r/{subreddit}/search.rss?q={symbol}&restrict_sr=on&sort=new&t=week"
+        f"https://oauth.reddit.com/r/{subreddit}/search.json?q={symbol}&restrict_sr=on&sort=new&t=week"
     )
 
 
@@ -52,22 +52,7 @@ def _stocktwits_message_sentiment(msg: dict[str, Any]) -> str | None:
     return None
 
 
-def _parse_reddit_atom_feed(text: str) -> list[tuple[str, str, str]]:
-    """Parse Reddit Atom search feed into (title, url, body) tuples."""
-    root = ET.fromstring(text)
-    items: list[tuple[str, str, str]] = []
-    for entry in root.findall("atom:entry", _REDDIT_ATOM_NS):
-        title = (entry.findtext("atom:title", default="", namespaces=_REDDIT_ATOM_NS) or "").strip()
-        link_el = entry.find("atom:link", _REDDIT_ATOM_NS)
-        url = link_el.get("href", "") if link_el is not None else ""
-        body = (
-            entry.findtext("atom:content", default="", namespaces=_REDDIT_ATOM_NS)
-            or entry.findtext("atom:summary", default="", namespaces=_REDDIT_ATOM_NS)
-            or title
-        ).strip()
-        if title and url:
-            items.append((title, url, body))
-    return items
+
 
 
 class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
@@ -140,24 +125,66 @@ class NewsSentimentAdapter(IMarketIntelProvider, IProviderDescribe):
             logger.warning("Stocktwits fetch failed for %s: %s", symbol, exc)
             return None
 
+    async def _fetch_reddit_token(self, client: ResilientHttpClient) -> str | None:
+        cache_key = "reddit_oauth_token"
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return str(cached)
+
+        reddit_cfg = self._provider_config.sources.reddit
+        client_id = getattr(reddit_cfg, "client_id", None)
+        client_secret = getattr(reddit_cfg, "client_secret", None)
+        if not client_id or not client_secret:
+            logger.warning("Reddit API credentials missing (REDDIT_CLIENT_ID/SECRET).")
+            return None
+
+        try:
+            response = await client.request(
+                "POST",
+                "https://www.reddit.com/api/v1/access_token",
+                auth=(client_id, client_secret),
+                data={"grant_type": "client_credentials"},
+            )
+            response.raise_for_status()
+            data = response.json()
+            token = data.get("access_token")
+            if token:
+                self._cache.set(cache_key, token, 82800)
+                return str(token)
+        except Exception as exc:
+            logger.warning("Failed to fetch Reddit OAuth token: %s", exc)
+        return None
+
     async def _fetch_reddit_entries(self, symbol: str) -> list[tuple[str, str, str]]:
         client = self._client_for("reddit")
         if client is None:
             return []
 
+        token = await self._fetch_reddit_token(client)
+        if not token:
+            return []
+
+        headers = {"Authorization": f"Bearer {token}"}
         entries: list[tuple[str, str, str]] = []
         for subreddit in _REDDIT_FORUM_SUBREDDITS:
             url = _reddit_search_url(symbol, subreddit)
             try:
-                response = await client.request("GET", url)
+                response = await client.request("GET", url, headers=headers)
                 response.raise_for_status()
-                entries.extend(
-                    _parse_reddit_atom_feed(response.text)[:_REDDIT_ENTRIES_PER_SUBREDDIT]
-                )
+                data = response.json()
+                children = data.get("data", {}).get("children", [])
+                for child in children[:_REDDIT_ENTRIES_PER_SUBREDDIT]:
+                    cdata = child.get("data", {})
+                    title = (cdata.get("title") or "").strip()
+                    permalink = cdata.get("permalink") or ""
+                    post_url = f"https://www.reddit.com{permalink}" if permalink else (cdata.get("url") or "")
+                    body = (cdata.get("selftext") or title).strip()
+                    if title and post_url:
+                        entries.append((title, post_url, body))
             except FinpipeProviderDownError as exc:
-                logger.info("Reddit RSS skipped for %s/%s: %s", subreddit, symbol, exc)
+                logger.info("Reddit API skipped for %s/%s: %s", subreddit, symbol, exc)
             except Exception as exc:
-                logger.warning("Reddit RSS failed for %s/%s: %s", subreddit, symbol, exc)
+                logger.warning("Reddit API failed for %s/%s: %s", subreddit, symbol, exc)
         return entries
 
     async def close(self) -> None:

@@ -11,7 +11,8 @@ async def test_client_initialization_and_close(config):
         assert client.catalog.capability("options").provider("massive") is not None
         assert client.catalog.capability("screener").provider("tradingview") is not None
 
-    assert client._registry.get("alpha_vantage")._client._client.is_closed
+    resilient = client._registry.get("alpha_vantage")._client
+    assert resilient._httpx_client is None and resilient._curl_session is None
 
 
 @pytest.mark.asyncio
