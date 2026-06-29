@@ -18,7 +18,7 @@ async def test_nvidia_remote_models_without_api_key(config):
 async def test_massive_options_snapshot_failure(config):
     adapter = MassiveOptionsAdapter(config)
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/snapshot").mock(
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
             side_effect=httpx.ConnectError("down")
         )
         with pytest.raises(FinpipeDataNotFoundError):

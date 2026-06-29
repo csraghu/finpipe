@@ -21,14 +21,19 @@ from finpipe.providers.sentiment import NewsSentimentAdapter, build_sentiment
 async def test_massive_get_options_chain_http_path(config):
     adapter = MassiveOptionsAdapter(config)
     payload = {
-        "data": {
-            "expiration_date": "2026-01-15",
-            "calls": [{"contract_symbol": "C1", "strike": 100.0, "in_the_money": False}],
-            "puts": [],
-        }
+        "results": [
+            {
+                "details": {
+                    "ticker": "O:C1",
+                    "contract_type": "call",
+                    "strike_price": 100.0,
+                    "expiration_date": "2026-01-15",
+                }
+            }
+        ]
     }
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/chain").mock(
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
             return_value=httpx.Response(200, json=payload)
         )
         chain = await adapter.get_options_chain("AAPL", date(2026, 1, 15))
@@ -40,7 +45,7 @@ async def test_massive_get_options_chain_http_path(config):
 async def test_massive_get_options_chain_failure(config):
     adapter = MassiveOptionsAdapter(config)
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/chain").mock(
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
             side_effect=httpx.ConnectError("down")
         )
         with pytest.raises(FinpipeDataNotFoundError):
@@ -57,7 +62,7 @@ async def test_massive_get_options_snapshot_cache_hit(config, pandas_config):
     )
     # Force cache key match by calling with no filters
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/snapshot").mock(
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
             return_value=httpx.Response(200, json={"data": [{"contract_symbol": "C1"}]})
         )
         first = await adapter.get_options_snapshot("AAPL")

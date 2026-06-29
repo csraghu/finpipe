@@ -203,50 +203,62 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
         if cached is not None:
             return OptionChain(**cached)
 
-        params: dict[str, str] = {"symbol": symbol}
-        if expiration_date:
-            params["expiration"] = expiration_date.strftime("%Y-%m-%d")
-        headers = {"Authorization": f"Bearer {self._api_key}"}
         try:
-            response = await self._client.request(
-                "GET", f"{self._base_url}/options/chain", params=params, headers=headers
-            )
-            data = response.json()
+            exp_str = expiration_date.strftime("%Y-%m-%d") if expiration_date else None
+            results = await self.fetch_options_snapshot(symbol, expiration_date=exp_str)
         except Exception as exc:
             logger.warning("Massive options chain request failed: %s", exc)
             raise FinpipeDataNotFoundError(
                 f"Failed to fetch options chain from Massive for {symbol}"
             ) from exc
 
-        if not data or "data" not in data:
+        if not results:
             raise FinpipeDataNotFoundError(f"No option chain found for {symbol}")
 
-        chain_data = data["data"]
+        calls = []
+        puts = []
+        target_exp = None
 
-        def _parse_contracts(contracts: list[dict], in_the_money: bool) -> list[OptionContract]:
-            return [
-                OptionContract(
-                    contract_symbol=c.get("contract_symbol", ""),
-                    strike=float(c.get("strike", 0.0)),
-                    last_price=c.get("last_price"),
-                    bid=c.get("bid"),
-                    ask=c.get("ask"),
-                    volume=c.get("volume"),
-                    open_interest=c.get("open_interest"),
-                    implied_volatility=c.get("implied_volatility"),
-                    in_the_money=c.get("in_the_money", in_the_money),
-                )
-                for c in contracts
-            ]
+        for c in results:
+            details = c.get("details", {})
+            c_type = details.get("contract_type", "").lower()
+            exp_date_str = details.get("expiration_date")
+            
+            if not target_exp and exp_date_str:
+                target_exp = exp_date_str
 
-        exp_dt = datetime.strptime(
-            chain_data.get("expiration_date", str(date.today())), "%Y-%m-%d"
-        ).date()
+            if target_exp and exp_date_str != target_exp:
+                continue
+
+            day = c.get("day", {})
+            quote = c.get("last_quote", {})
+            
+            contract = OptionContract(
+                contract_symbol=details.get("ticker", ""),
+                strike=float(details.get("strike_price", 0.0)),
+                last_price=day.get("close"),
+                bid=quote.get("bid"),
+                ask=quote.get("ask"),
+                volume=day.get("volume"),
+                open_interest=c.get("open_interest"),
+                implied_volatility=c.get("implied_volatility"),
+                in_the_money=False,
+            )
+            
+            if c_type == "call":
+                calls.append(contract)
+            elif c_type == "put":
+                puts.append(contract)
+
+        if not target_exp:
+            target_exp = str(date.today())
+            
+        exp_dt = datetime.strptime(target_exp, "%Y-%m-%d").date()
         chain = OptionChain(
             symbol=symbol,
             expiration_date=exp_dt,
-            calls=_parse_contracts(chain_data.get("calls", []), True),
-            puts=_parse_contracts(chain_data.get("puts", []), False),
+            calls=calls,
+            puts=puts,
         )
         self._cache.set(cache_key, chain.model_dump(), self._provider_config.ttls.options_chain_sec)
         return chain
@@ -257,20 +269,32 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
         if cached is not None:
             return self._format_dataframe(pd.DataFrame.from_dict(cached))
 
-        params = {"symbol": symbol, **filters}
-        headers = {"Authorization": f"Bearer {self._api_key}"}
         try:
-            response = await self._client.request(
-                "GET", f"{self._base_url}/options/snapshot", params=params, headers=headers
-            )
-            data = response.json()
+            results = await self.fetch_options_snapshot(symbol, **filters)
         except Exception as exc:
             logger.warning("Massive options snapshot request failed: %s", exc)
             raise FinpipeDataNotFoundError(
                 f"Failed to fetch options snapshot from Massive for {symbol}"
             ) from exc
 
-        df = pd.DataFrame(data.get("data", []))
+        flat_data = []
+        for r in results:
+            details = r.get("details", {})
+            day = r.get("day", {})
+            quote = r.get("last_quote", {})
+            flat_data.append({
+                "contract_symbol": details.get("ticker", ""),
+                "contract_type": details.get("contract_type", ""),
+                "strike": float(details.get("strike_price", 0.0)),
+                "expiration_date": details.get("expiration_date", ""),
+                "last_price": day.get("close"),
+                "bid": quote.get("bid"),
+                "ask": quote.get("ask"),
+                "volume": day.get("volume"),
+                "open_interest": r.get("open_interest"),
+                "implied_volatility": r.get("implied_volatility"),
+            })
+        df = pd.DataFrame(flat_data)
         self._cache.set(
             cache_key, df.to_dict(orient="list"), self._provider_config.ttls.options_snapshot_sec
         )

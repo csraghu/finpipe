@@ -11,29 +11,30 @@ async def test_massive_options_chain(config):
     adapter = MassiveOptionsAdapter(config)
 
     json_mock = {
-        "data": {
-            "expiration_date": "2023-01-15",
-            "calls": [
-                {
-                    "contract_symbol": "AAPL230115C00150000",
-                    "strike": 150.0,
-                    "last_price": 5.0,
-                    "in_the_money": False,
-                }
-            ],
-            "puts": [
-                {
-                    "contract_symbol": "AAPL230115P00150000",
-                    "strike": 150.0,
-                    "last_price": 4.5,
-                    "in_the_money": True,
-                }
-            ],
-        }
+        "results": [
+            {
+                "details": {
+                    "ticker": "O:AAPL230115C00150000",
+                    "contract_type": "call",
+                    "strike_price": 150.0,
+                    "expiration_date": "2023-01-15",
+                },
+                "day": {"close": 5.0},
+            },
+            {
+                "details": {
+                    "ticker": "O:AAPL230115P00150000",
+                    "contract_type": "put",
+                    "strike_price": 150.0,
+                    "expiration_date": "2023-01-15",
+                },
+                "day": {"close": 4.5},
+            },
+        ]
     }
 
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/chain").mock(
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
             return_value=httpx.Response(200, json=json_mock)
         )
         chain = await adapter.get_options_chain("AAPL", date(2023, 1, 15))
@@ -46,14 +47,30 @@ async def test_massive_options_snapshot(config, pandas_config):
     adapter = MassiveOptionsAdapter(pandas_config)
 
     json_mock = {
-        "data": [
-            {"contract_symbol": "AAPL230115C00150000", "strike": 150.0, "last_price": 5.0},
-            {"contract_symbol": "AAPL230115C00155000", "strike": 155.0, "last_price": 2.0},
+        "results": [
+            {
+                "details": {
+                    "ticker": "O:AAPL230115C00150000",
+                    "contract_type": "call",
+                    "strike_price": 150.0,
+                    "expiration_date": "2023-01-15",
+                },
+                "day": {"close": 5.0},
+            },
+            {
+                "details": {
+                    "ticker": "O:AAPL230115C00155000",
+                    "contract_type": "call",
+                    "strike_price": 155.0,
+                    "expiration_date": "2023-01-15",
+                },
+                "day": {"close": 2.0},
+            },
         ]
     }
 
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/snapshot").mock(
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
             return_value=httpx.Response(200, json=json_mock)
         )
         df = await adapter.get_options_snapshot("AAPL")
@@ -65,8 +82,8 @@ async def test_massive_empty_response(config, pandas_config):
     adapter = MassiveOptionsAdapter(pandas_config)
 
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/snapshot").mock(
-            return_value=httpx.Response(200, json={"data": []})
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
+            return_value=httpx.Response(200, json={"results": []})
         )
         df = await adapter.get_options_snapshot("AAPL")
         assert len(df) == 0

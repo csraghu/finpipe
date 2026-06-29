@@ -210,8 +210,8 @@ async def test_massive_api_key_and_s3_session_paths(config):
 async def test_massive_get_options_chain_empty_payload(config):
     adapter = MassiveOptionsAdapter(config)
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/chain").mock(
-            return_value=httpx.Response(200, json={})
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
+            return_value=httpx.Response(200, json={"results": []})
         )
         with pytest.raises(FinpipeDataNotFoundError, match="No option chain"):
             await adapter.get_options_chain("AAPL")
@@ -222,7 +222,7 @@ async def test_massive_get_options_chain_empty_payload(config):
 async def test_massive_get_options_snapshot_request_failure(config):
     adapter = MassiveOptionsAdapter(config)
     with respx.mock:
-        respx.get("https://api.massive.com/v1/options/snapshot").mock(
+        respx.get("https://api.massive.com/v3/snapshot/options/AAPL").mock(
             side_effect=httpx.ConnectError("down")
         )
         with pytest.raises(FinpipeDataNotFoundError):

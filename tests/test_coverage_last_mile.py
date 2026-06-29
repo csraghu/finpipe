@@ -91,7 +91,7 @@ async def test_massive_get_json_without_api_key(config):
 
     adapter = MassiveOptionsAdapter(config)
     adapter._api_key = None
-    assert await adapter._get_json("https://api.massive.com/v1/options/chain") == {}
+    assert await adapter._get_json("https://api.massive.com/v3/snapshot/options/AAPL") == {}
 
 
 @pytest.mark.asyncio
