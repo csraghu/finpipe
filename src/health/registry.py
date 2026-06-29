@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from finpipe.core.config import FinpipeConfig, HealthConfig, ProviderGroupConfig
+from finpipe.core.config import FinpipeConfig, HealthConfig
 
 SUPPORTED_LLM_PROVIDERS: tuple[str, ...] = ("groq", "gemini", "nvidia")
 
@@ -20,6 +20,7 @@ DEFAULT_PROBE_KEYS: tuple[str, ...] = (
     "llm.groq",
     "llm.gemini",
     "llm.nvidia",
+    "compression.huggingface",
 )
 
 _PROBE_ENABLED: dict[str, str] = {
@@ -37,11 +38,15 @@ _INTEL_SOURCES = frozenset({"google_news", "stocktwits", "reddit"})
 _SCREENER_SOURCES = frozenset({"yahoo_trending", "yahoo_predefined", "finviz", "tradingview"})
 
 
-def is_probe_provider_enabled(providers: ProviderGroupConfig, probe_key: str) -> bool:
-    return _is_provider_enabled(providers, probe_key)
+def is_probe_provider_enabled(config: FinpipeConfig, probe_key: str) -> bool:
+    return _is_provider_enabled(config, probe_key)
 
 
-def _is_provider_enabled(providers: ProviderGroupConfig, probe_key: str) -> bool:
+def _is_provider_enabled(config: FinpipeConfig, probe_key: str) -> bool:
+    if probe_key == "compression.huggingface":
+        return config.llm_prompt.compression.enabled
+
+    providers = config.providers
     if probe_key in _PROBE_ENABLED:
         name = _PROBE_ENABLED[probe_key]
         return bool(getattr(providers, name).enabled)
@@ -69,11 +74,17 @@ def resolve_probe_keys(config: FinpipeConfig) -> list[str]:
     if not health.enabled:
         return []
 
-    if health.probes:
-        return [
-            key
-            for key in health.probes
-            if health.probes[key].enabled and _is_provider_enabled(config.providers, key)
-        ]
+    keys = []
+    for key in DEFAULT_PROBE_KEYS:
+        if health.probes and key in health.probes and not health.probes[key].enabled:
+            continue
+        if _is_provider_enabled(config, key):
+            keys.append(key)
 
-    return [key for key in DEFAULT_PROBE_KEYS if _is_provider_enabled(config.providers, key)]
+    # Also include any custom probes if they exist in health.probes
+    if health.probes:
+        for key, probe_config in health.probes.items():
+            if key not in DEFAULT_PROBE_KEYS and probe_config.enabled and _is_provider_enabled(config, key):
+                keys.append(key)
+
+    return keys

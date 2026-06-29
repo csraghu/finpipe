@@ -20,9 +20,9 @@ from finpipe.providers.yahoo import YahooFinanceAdapter
 
 
 def test_is_provider_enabled_invalid_intel_and_screener_keys(config):
-    assert _is_provider_enabled(config.providers, "intel.unknown") is False
-    assert _is_provider_enabled(config.providers, "screener.unknown") is False
-    assert _is_provider_enabled(config.providers, "unknown.provider") is False
+    assert _is_provider_enabled(config, "intel.unknown") is False
+    assert _is_provider_enabled(config, "screener.unknown") is False
+    assert _is_provider_enabled(config, "unknown.provider") is False
 
 
 def test_resolve_probe_keys_default_enabled_providers(config):

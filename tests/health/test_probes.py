@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
@@ -275,6 +275,65 @@ async def test_probe_intel_google_news_connected():
     assert await probes.probe_intel_google_news(client, "SPY") is None
 
 
+@pytest.mark.asyncio
+@patch("finpipe.health.probes.compress_llm_text_for_sentiment")
+async def test_probe_compression_huggingface_success(mock_compress):
+    mock_compress.return_value = "compressed"
+    client = _client_with_config()
+    client.config = client.config.model_copy(
+        update={"llm_prompt": client.config.llm_prompt.model_copy(
+            update={"compression": client.config.llm_prompt.compression.model_copy(
+                update={"endpoint_url": "http://test"}
+            )}
+        )}
+    )
+    assert await probes.probe_compression_huggingface(client, "SPY") is None
+    mock_compress.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_probe_compression_huggingface_missing_endpoint():
+    client = _client_with_config()
+    client.config = client.config.model_copy(
+        update={"llm_prompt": client.config.llm_prompt.model_copy(
+            update={"compression": client.config.llm_prompt.compression.model_copy(
+                update={"endpoint_url": None}
+            )}
+        )}
+    )
+    assert "not configured" in await probes.probe_compression_huggingface(client, "SPY")
+
+
+@pytest.mark.asyncio
+@patch("finpipe.health.probes.compress_llm_text_for_sentiment")
+async def test_probe_compression_huggingface_empty(mock_compress):
+    mock_compress.return_value = ""
+    client = _client_with_config()
+    client.config = client.config.model_copy(
+        update={"llm_prompt": client.config.llm_prompt.model_copy(
+            update={"compression": client.config.llm_prompt.compression.model_copy(
+                update={"endpoint_url": "http://test"}
+            )}
+        )}
+    )
+    assert "returned empty" in await probes.probe_compression_huggingface(client, "SPY")
+
+
+@pytest.mark.asyncio
+@patch("finpipe.health.probes.compress_llm_text_for_sentiment")
+async def test_probe_compression_huggingface_exception(mock_compress):
+    mock_compress.side_effect = Exception("error")
+    client = _client_with_config()
+    client.config = client.config.model_copy(
+        update={"llm_prompt": client.config.llm_prompt.model_copy(
+            update={"compression": client.config.llm_prompt.compression.model_copy(
+                update={"endpoint_url": "http://test"}
+            )}
+        )}
+    )
+    assert "failed: error" in await probes.probe_compression_huggingface(client, "SPY")
+
+
 def test_probe_runners_registry_keys():
     assert set(probes.PROBE_RUNNERS) == {
         "equity.yahoo",
@@ -292,4 +351,5 @@ def test_probe_runners_registry_keys():
         "llm.groq",
         "llm.gemini",
         "llm.nvidia",
+        "compression.huggingface",
     }

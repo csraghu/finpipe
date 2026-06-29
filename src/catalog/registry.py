@@ -258,4 +258,15 @@ PROBE_CATALOG: tuple[HealthProbeCatalogEntry, ...] = tuple(
     )
     for provider in PROVIDER_CATALOG
     if provider.health_probe_key is not None
+) + (
+    HealthProbeCatalogEntry(
+        key="compression.huggingface",
+        capability="llm",  # Not strictly an LLM provider, but fits best under LLM prompt compression
+        provider_id="huggingface",
+        label="HuggingFace Compression Endpoint",
+        description="Text compression service hosted on HuggingFace for prompt summarization.",
+        returns="str (compressed text)",
+        probe_action="Send test payload to the compression endpoint",
+        settings_path="llm_prompt.compression",
+    ),
 )

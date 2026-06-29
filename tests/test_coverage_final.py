@@ -181,7 +181,9 @@ async def test_probe_success_paths(config):  # noqa: C901
         "massive": mas_cfg,
         "fred": fred_cfg
     })
-    config = config.model_copy(update={"providers": new_providers})
+    new_compression = config.llm_prompt.compression.model_copy(update={"endpoint_url": "http://test"})
+    new_llm_prompt = config.llm_prompt.model_copy(update={"compression": new_compression})
+    config = config.model_copy(update={"providers": new_providers, "llm_prompt": new_llm_prompt})
 
     async with Client(config) as client:
         for key in probes.PROBE_RUNNERS:

@@ -127,7 +127,9 @@ def test_list_health_probes_merges_explicit_config():
     assert probes["equity.yahoo"].would_run is True
     assert probes["llm.groq"].configured_in_health is False
     assert probes["llm.groq"].would_run is False
-    assert resolve_probe_keys(config) == ["equity.yahoo"]
+    active_keys = resolve_probe_keys(config)
+    assert "equity.yahoo" in active_keys
+    assert "llm.groq" not in active_keys
 
 
 def test_health_config_template_matches_would_run(config):

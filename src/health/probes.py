@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
 from finpipe.core.exceptions import FinpipeConfigError
+from finpipe.core.llm_compress import compress_llm_text_for_sentiment
 from finpipe.core.models import SocialPostKind
 
 if TYPE_CHECKING:
@@ -180,6 +181,25 @@ async def probe_llm_nvidia(client: Client, symbol: str) -> str | None:
     return await _probe_llm_provider(client, "nvidia")
 
 
+async def probe_compression_huggingface(client: Client, symbol: str) -> str | None:
+    del symbol
+    compression = client.config.llm_prompt.compression
+    if not compression.endpoint_url:
+        return "huggingface compression endpoint_url not configured"
+
+    try:
+        compressed = await compress_llm_text_for_sentiment(
+            "This is a test sentence.",
+            endpoint_url=compression.endpoint_url,
+            target_ratio=0.5
+        )
+        if not compressed:
+            return "huggingface compression returned empty"
+        return None
+    except Exception as exc:
+        return f"huggingface compression failed: {exc}"
+
+
 PROBE_RUNNERS = {
     "equity.yahoo": probe_equity_yahoo,
     "equity.alpha_vantage": probe_equity_alpha_vantage,
@@ -196,4 +216,5 @@ PROBE_RUNNERS = {
     "llm.groq": probe_llm_groq,
     "llm.gemini": probe_llm_gemini,
     "llm.nvidia": probe_llm_nvidia,
+    "compression.huggingface": probe_compression_huggingface,
 }

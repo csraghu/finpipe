@@ -42,7 +42,7 @@ class CatalogService:
         probe_key = entry.health_probe_key
         if probe_key is None:
             return True
-        return is_probe_provider_enabled(self._config.providers, probe_key)
+        return is_probe_provider_enabled(self._config, probe_key)
 
     def _provider_refs_for(self, capability: CapabilityName) -> list[ProviderRef]:
         rows: list[ProviderRef] = []
@@ -65,7 +65,7 @@ class CatalogService:
 
         rows: list[HealthProbeCatalogEntryResolved] = []
         for entry in PROBE_CATALOG:
-            provider_enabled = is_probe_provider_enabled(self._config.providers, entry.key)
+            provider_enabled = is_probe_provider_enabled(self._config, entry.key)
             if explicit_probes:
                 toggle = health.probes.get(entry.key)
                 configured_in_health = toggle.enabled if toggle is not None else False

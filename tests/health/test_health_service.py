@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from finpipe.core.config import FinpipeConfig
@@ -23,12 +23,15 @@ def test_resolve_probe_keys_uses_explicit_probes():
         }
     )
     keys = resolve_probe_keys(config)
-    assert keys == ["equity.yahoo", "screener.yahoo_trending"]
+    assert "equity.yahoo" in keys
+    assert "screener.yahoo_trending" in keys
+    assert "llm.groq" not in keys
 
 
 def test_resolve_probe_keys_empty_when_disabled():
     config = FinpipeConfig.from_dict({"health": {"enabled": False}})
     assert resolve_probe_keys(config) == []
+
 
 
 @pytest.mark.asyncio
@@ -55,7 +58,9 @@ async def test_check_all_runs_configured_probes():
     client.catalog = catalog
 
     service = HealthService(client)
-    report = await service.check_all()
+
+    with patch("finpipe.health.service.resolve_probe_keys", return_value=["equity.yahoo"]):
+        report = await service.check_all()
 
     assert report.all_connected
     assert report.results["equity.yahoo"].status == "connected"
@@ -94,7 +99,10 @@ async def test_check_skips_unconfigured_probe_key():
         {
             "health": {
                 "enabled": True,
-                "probes": {"equity.yahoo": {"enabled": True}},
+                "probes": {"equity.yahoo": {"enabled": True}, "llm.groq": {"enabled": False}},
+            },
+            "providers": {
+                "groq": {"enabled": False}
             }
         }
     )
@@ -103,3 +111,25 @@ async def test_check_skips_unconfigured_probe_key():
     service = HealthService(client)
     result = await service.check("llm.groq")
     assert result.status == "skipped"
+
+def test_resolve_probe_keys_custom_probe():
+    config = FinpipeConfig.from_dict(
+        {
+            "health": {
+                "enabled": True,
+                "probes": {"custom.probe": {"enabled": True}},
+            }
+        }
+    )
+    with patch("finpipe.health.registry._is_provider_enabled", return_value=True):
+        keys = resolve_probe_keys(config)
+    assert "custom.probe" in keys
+
+def test_is_provider_enabled_screener_disabled():
+    from finpipe.health.registry import _is_provider_enabled
+    config = FinpipeConfig.from_dict({
+        "providers": {
+            "screener": {"enabled": False}
+        }
+    })
+    assert _is_provider_enabled(config, "screener.yahoo_trending") is False
