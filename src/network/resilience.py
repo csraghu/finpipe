@@ -174,7 +174,7 @@ class ResilientHttpClient:
 
     async def _transport_request(self, method: str, url: str, **kwargs: Any) -> Any:
         if self._curl_session is not None:
-            return await self._curl_session.request(method, url, **kwargs)
+            return await self._curl_session.request(method, url, **kwargs)  # type: ignore
         if self._httpx_client is None:
             raise RuntimeError(f"HTTP client ({self.namespace}) is closed")
         return await self._httpx_client.request(method, url, **kwargs)

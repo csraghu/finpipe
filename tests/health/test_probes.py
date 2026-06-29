@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -16,7 +17,7 @@ def _client_with_config(config: FinpipeConfig | None = None) -> MagicMock:
     return client
 
 
-def _catalog_chain(client: MagicMock, capability: str, provider: str | None = None):
+def _catalog_chain(client: MagicMock, capability: str, provider: str | None = None) -> Any:
     catalog = client.catalog
     capability_handle = MagicMock()
     catalog.capability = MagicMock(return_value=capability_handle)
@@ -228,7 +229,7 @@ async def test_probe_llm_groq_connected():
     groq.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content="OK"))
     assert await probes.probe_llm_groq(client, "SPY") is None
     groq.generate_response.assert_awaited_once()
-    call_kwargs = groq.generate_response.await_args.kwargs
+    call_kwargs = groq.generate_response.await_args.kwargs  # type: ignore
     assert call_kwargs["max_tokens"] == client.config.health.llm_probe_max_tokens
 
 
@@ -238,7 +239,7 @@ async def test_probe_llm_gemini_connected():
     _, gemini = _catalog_chain(client, "llm", "gemini")
     gemini.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content="OK"))
     assert await probes.probe_llm_gemini(client, "SPY") is None
-    call_kwargs = gemini.generate_response.await_args.kwargs
+    call_kwargs = gemini.generate_response.await_args.kwargs  # type: ignore
     max_out = call_kwargs["generationConfig"]["maxOutputTokens"]
     assert max_out == client.config.health.llm_probe_max_tokens
 
@@ -301,7 +302,7 @@ async def test_probe_compression_huggingface_missing_endpoint():
             )}
         )}
     )
-    assert "not configured" in await probes.probe_compression_huggingface(client, "SPY")
+    assert "not configured" in await probes.probe_compression_huggingface(client, "SPY")  # type: ignore
 
 
 @pytest.mark.asyncio
@@ -316,7 +317,7 @@ async def test_probe_compression_huggingface_empty(mock_compress):
             )}
         )}
     )
-    assert "returned empty" in await probes.probe_compression_huggingface(client, "SPY")
+    assert "returned empty" in await probes.probe_compression_huggingface(client, "SPY")  # type: ignore
 
 
 @pytest.mark.asyncio
@@ -331,7 +332,7 @@ async def test_probe_compression_huggingface_exception(mock_compress):
             )}
         )}
     )
-    assert "failed: error" in await probes.probe_compression_huggingface(client, "SPY")
+    assert "failed: error" in await probes.probe_compression_huggingface(client, "SPY")  # type: ignore
 
 
 def test_probe_runners_registry_keys():

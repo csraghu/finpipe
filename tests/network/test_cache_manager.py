@@ -65,10 +65,10 @@ def test_cache_manager_shutdown_closes_sqlite_backend(tmp_path):
     )
     backend = CacheManager.get_shared(config)
     backend.set("k", "v", 60)
-    assert backend._conn is not None
+    assert backend._conn is not None  # type: ignore
     CacheManager.shutdown()
     assert not CacheManager._instances
-    assert backend._conn is None
+    assert backend._conn is None  # type: ignore
 
 
 def test_resolve_cache_backend_singleton_shares_backend():

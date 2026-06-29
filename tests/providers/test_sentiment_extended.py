@@ -126,6 +126,7 @@ async def test_sentiment_get_sentiment_score_aggregates(config):
             )
         )
         score = await adapter.get_sentiment_score("AAPL")
+        assert score.magnitude is not None
         assert score.magnitude > 0
 
 

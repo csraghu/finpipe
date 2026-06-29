@@ -44,7 +44,7 @@ async def test_sentiment_reddit_token_missing_credentials(config):
     new_providers = config.providers.model_copy(update={"sentiment": new_sentiment})
     new_config = config.model_copy(update={"providers": new_providers})
     adapter = NewsSentimentAdapter(new_config)
-    assert await adapter._fetch_reddit_token(None) is None
+    assert await adapter._fetch_reddit_token(None) is None  # type: ignore
 
 @pytest.mark.asyncio
 async def test_sentiment_reddit_token_exception(config):
@@ -58,7 +58,7 @@ async def test_sentiment_reddit_token_exception(config):
         respx.post("https://www.reddit.com/api/v1/access_token").mock(
             side_effect=Exception("Failed")
         )
-        assert await adapter._fetch_reddit_token(adapter._client_for("reddit")) is None
+        assert await adapter._fetch_reddit_token(adapter._client_for("reddit")) is None  # type: ignore
 
 @pytest.mark.asyncio
 async def test_sentiment_reddit_stream_exceptions(config):
@@ -106,7 +106,7 @@ async def test_yahoo_exceptions(config):
     with patch("yfinance.Ticker.info", new_callable=PropertyMock) as mock_info:
         mock_info.side_effect = Exception("Failed")
         with pytest.raises(Exception):
-            await adapter.get_company_info("AAPL")
+            await adapter.get_metadata("AAPL")  # changed from get_company_info
 
     with patch("yfinance.Ticker.history") as mock_history:
         import pandas as pd

@@ -150,7 +150,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
             return False
         os.makedirs(os.path.dirname(local_dest_path) or ".", exist_ok=True)
         try:
-            async with session.client(
+            async with session.client(  # type: ignore
                 "s3",
                 endpoint_url=self._s3_endpoint,
                 config=BotoConfig(signature_version="s3v4"),
@@ -179,7 +179,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
         if not session:
             return []
         try:
-            async with session.client(
+            async with session.client(  # type: ignore
                 "s3",
                 endpoint_url=self._s3_endpoint,
                 config=BotoConfig(signature_version="s3v4"),

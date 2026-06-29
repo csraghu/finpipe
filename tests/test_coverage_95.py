@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -52,10 +53,10 @@ def test_sqlite_cache_pragma_operational_error(tmp_path, monkeypatch):
         def __init__(self, conn: sqlite3.Connection) -> None:
             self._conn = conn
 
-        def execute(self, sql: str, *params: object):
+        def execute(self, sql: str, parameters: Any = ()):
             if "PRAGMA" in str(sql):
                 raise sqlite3.OperationalError("locked")
-            return self._conn.execute(sql, *params)
+            return self._conn.execute(sql, parameters)
 
         def __getattr__(self, name: str):
             return getattr(self._conn, name)
