@@ -29,6 +29,8 @@ class GeminiAdapter(LlmProviderBase, ILLMProvider, IProviderDescribe):
 
     async def close(self) -> None:
         await self._client.close()
+        if hasattr(self, "_compression_client") and self._compression_client is not None:
+            await self._compression_client.close()
 
     async def _remote_models(self) -> list[str]:
         if not self._api_key:

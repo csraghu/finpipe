@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ async def compress_llm_text_for_sentiment(
     device: str = "cpu",
     model_name: str = DEFAULT_LLMLINGUA_MODEL,
     endpoint_url: str | None = None,
+    http_client: Any = None,
 ) -> str:
     """Async wrapper — compression runs via remote API."""
     if not text.strip():
@@ -30,28 +32,30 @@ async def compress_llm_text_for_sentiment(
     if endpoint_url:
         import os
 
-        import httpx
         headers = {}
         api_key = os.environ.get("PROMPRESS_API_KEY") or os.environ.get("HF_TOKEN")
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(
-                    endpoint_url,
-                    json={
-                        "text": text,
-                        "target_ratio": target_ratio,
-                        "model_name": model_name,
-                    },
-                    headers=headers
-                )
-                resp.raise_for_status()
+            payload = {
+                "text": text,
+                "target_ratio": target_ratio,
+                "model_name": model_name,
+            }
+            if http_client is not None:
+                resp = await http_client.request("POST", endpoint_url, json=payload, headers=headers)
                 data = resp.json()
-                compressed = data.get("compressed_prompt")
-                if isinstance(compressed, str) and compressed.strip():
-                    return compressed
+            else:
+                import httpx
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(endpoint_url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+
+            compressed = data.get("compressed_prompt")
+            if isinstance(compressed, str) and compressed.strip():
+                return compressed
         except Exception as exc:
             logger.warning("Remote LLMLingua compression failed, returning uncompressed text: %s", exc)
 

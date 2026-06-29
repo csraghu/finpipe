@@ -21,6 +21,7 @@ Before execution of any specific provider's API, `finpipe` actively checks if th
 * `FRED_API_KEY`: API key for the Federal Reserve Economic Data endpoints.
 * `GROQ_API_KEY`: API key for LLM generation via Groq.
 * `GEMINI_API_KEY`: API key for LLM generation via Google Gemini.
+* `PROMPRESS_API_KEY` or `HF_TOKEN`: API key for HuggingFace/Prompress prompt compression.
 
 ### Massive Options Configuration
 Massive Options requires specific S3 storage and API configurations:

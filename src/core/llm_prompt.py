@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from finpipe.core.llm_compress import (
     compress_llm_text_for_sentiment,
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 async def prepare_llm_prompt(
     text: str,
     compression: LlmPromptCompressionConfig,
+    client: Any = None,
 ) -> str:
     """Sanitize noise, then optionally compress with sentiment-aware LLMLingua."""
     prepared = sanitize_llm_text(text)
@@ -36,6 +37,7 @@ async def prepare_llm_prompt(
             device=compression.device,
             model_name=compression.model_name,
             endpoint_url=compression.endpoint_url,
+            http_client=client,
         )
     except Exception as exc:
         logger.warning(
@@ -45,6 +47,6 @@ async def prepare_llm_prompt(
         return prepared
 
 
-async def prepare_gemini_prompt(text: str, compression: LlmPromptCompressionConfig) -> str:
+async def prepare_gemini_prompt(text: str, compression: LlmPromptCompressionConfig, client: Any = None) -> str:
     """Backward-compatible alias for :func:`prepare_llm_prompt`."""
-    return await prepare_llm_prompt(text, compression)
+    return await prepare_llm_prompt(text, compression, client=client)

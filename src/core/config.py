@@ -131,6 +131,9 @@ class LlmPromptCompressionConfig(BaseModel):
         default=None,
         description="Optional HTTP URL hosting the compression API. Bypasses local LLMLingua inference if set.",
     )
+    rate_limits: RateLimitConfig = Field(
+        default_factory=lambda: RateLimitConfig(max_requests_per_second=0.2, max_retries=3)
+    )
 
 
 class LlmPromptConfig(BaseModel):
