@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from finpipe.core.llm_compress import compress_llm_text_for_sentiment, _chunk_text
-from finpipe.core.llm_prompt import prepare_llm_prompt, prepare_gemini_prompt
+import pytest
 from finpipe.core.config import LlmPromptCompressionConfig
+from finpipe.core.llm_compress import _chunk_text, compress_llm_text_for_sentiment
+from finpipe.core.llm_prompt import prepare_gemini_prompt, prepare_llm_prompt
+
 
 def test_chunk_text():
     text = "Word. " * 400
@@ -22,7 +23,7 @@ async def test_compress_llm_text_for_sentiment_with_http_client():
     mock_resp = MagicMock()
     mock_resp.json.return_value = {"compressed_prompt": "compressed text"}
     mock_client.request.return_value = mock_resp
-    
+
     with patch.dict("os.environ", {"PROMPRESS_API_KEY": "test_key"}):
         result = await compress_llm_text_for_sentiment(
             "some text to compress",
@@ -40,7 +41,7 @@ async def test_compress_llm_text_for_sentiment_with_httpx():
         mock_resp.json.return_value = {"compressed_prompt": "compressed text"}
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value.__aenter__.return_value = mock_client
-        
+
         result = await compress_llm_text_for_sentiment(
             "some text to compress",
             endpoint_url="http://fake",
@@ -54,7 +55,7 @@ async def test_compress_llm_text_for_sentiment_httpx_exception():
         mock_client = AsyncMock()
         mock_client.post.side_effect = Exception("HTTP Error")
         mock_client_cls.return_value.__aenter__.return_value = mock_client
-        
+
         result = await compress_llm_text_for_sentiment(
             "some text to compress",
             endpoint_url="http://fake",

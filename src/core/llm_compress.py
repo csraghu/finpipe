@@ -28,7 +28,7 @@ def _chunk_text(text: str, max_words: int = 300) -> list[str]:
             chunks.append("\n".join(current_chunk))
             current_chunk = []
             current_length = 0
-        
+
         if p_len > max_words:
             words = p.split()
             for i in range(0, len(words), max_words):
@@ -36,10 +36,10 @@ def _chunk_text(text: str, max_words: int = 300) -> list[str]:
         else:
             current_chunk.append(p)
             current_length += p_len
-            
+
     if current_chunk:
         chunks.append("\n".join(current_chunk))
-        
+
     return chunks
 
 async def compress_llm_text_for_sentiment(
