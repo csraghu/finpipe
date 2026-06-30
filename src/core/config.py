@@ -546,7 +546,7 @@ class HealthConfig(BaseModel):
 
     enabled: bool = True
     probe_symbol: str = Field(
-        default="SPY",
+        default="AAPL",
         min_length=1,
         description="Equity symbol used for metadata/options/intel probes",
     )

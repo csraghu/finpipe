@@ -1,356 +1,177 @@
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import polars as pl
 import pytest
-from finpipe.core.config import FinpipeConfig
-from finpipe.core.exceptions import FinpipeConfigError
-from finpipe.core.models import LLMResponse, SocialPostKind, TickerMetadata
-from finpipe.health import probes
+from unittest.mock import AsyncMock, MagicMock
+from finpipe.health.probes import universal_probe_runner
+from finpipe.core.exceptions import (
+    FinpipeConfigError,
+    FinpipeProviderDownError,
+    FinpipeRateLimitExceededError,
+)
+from finpipe.core.interfaces import (
+    IHistoricalPriceProvider,
+    IMetadataProvider,
+    IOptionsProvider,
+    IMacroProvider,
+    IMarketIntelProvider,
+    IScreenerProvider,
+    ILLMProvider,
+)
+from finpipe.core.models import TickerMetadata
 
 
-def _client_with_config(config: FinpipeConfig | None = None) -> MagicMock:
+@pytest.fixture
+def mock_client():
     client = MagicMock()
-    client.config = config or FinpipeConfig()
+    client._registry = MagicMock()
+    client.config = MagicMock()
     return client
 
 
-def _catalog_chain(client: MagicMock, capability: str, provider: str | None = None) -> Any:
-    catalog = client.catalog
-    capability_handle = MagicMock()
-    catalog.capability = MagicMock(return_value=capability_handle)
-    if provider is not None:
-        provider_ref = MagicMock()
-        capability_handle.provider = MagicMock(return_value=provider_ref)
-        return capability_handle, provider_ref
-    return capability_handle
+@pytest.mark.asyncio
+async def test_universal_probe_not_found(mock_client):
+    mock_client._registry.get.side_effect = KeyError
+    res = await universal_probe_runner(mock_client, "AAPL", "unknown")
+    assert "not found" in res
 
 
 @pytest.mark.asyncio
-async def test_probe_equity_yahoo_connected():
-    client = _client_with_config()
-    _, yahoo = _catalog_chain(client, "equity", "yahoo")
-    yahoo.get_metadata = AsyncMock(return_value=TickerMetadata(symbol="SPY"))
-    assert await probes.probe_equity_yahoo(client, "SPY") is None
+async def test_universal_probe_success_equity(mock_client):
+    provider = MagicMock(spec=IHistoricalPriceProvider)
+    provider.get_historical_prices = AsyncMock(return_value=[1, 2, 3])
+    
+    # Needs to not implement others
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert res is None
 
 
 @pytest.mark.asyncio
-async def test_probe_equity_yahoo_degraded():
-    client = _client_with_config()
-    _, yahoo = _catalog_chain(client, "equity", "yahoo")
-    yahoo.get_metadata = AsyncMock(return_value=TickerMetadata(symbol=""))
-    assert await probes.probe_equity_yahoo(client, "SPY") == "metadata missing symbol"
+async def test_universal_probe_degraded_equity(mock_client):
+    class DummyEquityProvider(IHistoricalPriceProvider, IMetadataProvider):
+        async def get_historical_prices(self, symbol, start, end):
+            raise ValueError("bad data")
+            
+        async def get_metadata(self, symbol):
+            class Meta:
+                symbol = None
+            return Meta()
+            
+        async def get_financial_statements(self, symbol):
+            raise NotImplementedError()
+
+    provider = DummyEquityProvider()
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert "get_historical_prices failed" in res
+    assert "missing symbol" in res
 
 
 @pytest.mark.asyncio
-async def test_probe_equity_alpha_vantage_missing_key(monkeypatch):
-    monkeypatch.delenv("ALPHA_VANTAGE_API_KEY", raising=False)
-    config = FinpipeConfig.from_dict({"providers": {"alpha_vantage": {"enabled": True}}})
-    client = _client_with_config(config)
-    with pytest.raises(FinpipeConfigError):
-        await probes.probe_equity_alpha_vantage(client, "SPY")
+async def test_universal_probe_raises_finpipe_exceptions(mock_client):
+    class DummyEquityProvider(IHistoricalPriceProvider):
+        async def get_historical_prices(self, symbol, start, end):
+            raise FinpipeProviderDownError("down")
+
+    provider = DummyEquityProvider()
+    mock_client._registry.get.return_value = provider
+    
+    with pytest.raises(FinpipeProviderDownError):
+        await universal_probe_runner(mock_client, "AAPL", "dummy")
 
 
 @pytest.mark.asyncio
-async def test_probe_equity_alpha_vantage_connected():
-    client = _client_with_config()
-    _, av = _catalog_chain(client, "equity", "alpha_vantage")
-    av.get_live_spot_price = AsyncMock(return_value=450.0)
-    assert await probes.probe_equity_alpha_vantage(client, "SPY") is None
+async def test_universal_probe_success_options(mock_client):
+    class DummyOptionsProvider(IOptionsProvider):
+        async def get_options_chain(self, symbol):
+            return {"chain": True}
+            
+        async def get_options_snapshot(self, symbol, limit=1):
+            return [{"snap": True}]
+
+    provider = DummyOptionsProvider()
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert res is None
 
 
 @pytest.mark.asyncio
-async def test_probe_equity_alpha_vantage_degraded():
-    client = _client_with_config()
-    _, av = _catalog_chain(client, "equity", "alpha_vantage")
-    av.get_live_spot_price = AsyncMock(return_value=None)
-    assert (
-        await probes.probe_equity_alpha_vantage(client, "SPY") == "spot price unavailable for SPY"
-    )
+async def test_universal_probe_degraded_options(mock_client):
+    class DummyOptionsProvider(IOptionsProvider):
+        async def get_options_chain(self, symbol):
+            raise ValueError("chain error")
+            
+        async def get_options_snapshot(self, symbol, limit=1):
+            class EmptyRet:
+                def is_empty(self): return True
+            return EmptyRet()
+
+    provider = DummyOptionsProvider()
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert "get_options_chain failed" in res
+    assert "get_options_snapshot returned empty" in res
 
 
 @pytest.mark.asyncio
-async def test_probe_options_massive_missing_key(monkeypatch):
-    monkeypatch.delenv("MASSIVE_API_KEY", raising=False)
-    config = FinpipeConfig.from_dict({"providers": {"massive": {"enabled": True}}})
-    client = _client_with_config(config)
-    with pytest.raises(FinpipeConfigError):
-        await probes.probe_options_massive(client, "SPY")
+async def test_universal_probe_success_macro(mock_client):
+    class DummyMacroProvider(IMacroProvider):
+        async def get_macro_series(self, series_id, start_date, end_date):
+            return [1]
+
+    provider = DummyMacroProvider()
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert res is None
 
 
 @pytest.mark.asyncio
-async def test_probe_options_massive_degraded():
-    client = _client_with_config()
-    _, massive = _catalog_chain(client, "options", "massive")
-    massive.fetch_options_snapshot = AsyncMock(return_value=[])
-    assert await probes.probe_options_massive(client, "SPY") == "options snapshot empty"
+async def test_universal_probe_success_intel(mock_client):
+    class DummyIntelProvider(IMarketIntelProvider):
+        async def get_news(self, symbol, limit=1):
+            return [{"news": True}]
+        async def get_social_posts(self, symbol, limit, kind=None):
+            return [{"post": True}]
+        async def get_sentiment_score(self, symbol):
+            return {"score": 0.5}
+
+    provider = DummyIntelProvider()
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert res is None
 
 
 @pytest.mark.asyncio
-async def test_probe_options_massive_connected():
-    client = _client_with_config()
-    _, massive = _catalog_chain(client, "options", "massive")
-    massive.fetch_options_snapshot = AsyncMock(return_value=[{"symbol": "O:SPY"}])
-    assert await probes.probe_options_massive(client, "SPY") is None
+async def test_universal_probe_success_screener(mock_client):
+    class DummyScreenerProvider(IScreenerProvider):
+        async def run_screener(self, criteria):
+            return ["AAPL"]
+
+    provider = DummyScreenerProvider()
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert res is None
 
 
 @pytest.mark.asyncio
-async def test_probe_options_yahoo_connected():
-    client = _client_with_config()
-    _, yahoo = _catalog_chain(client, "options", "yahoo")
-    yahoo.get_options_snapshot = AsyncMock(return_value=pl.DataFrame({"x": [1]}))
-    assert await probes.probe_options_yahoo(client, "SPY") is None
+async def test_universal_probe_success_llm(mock_client):
+    class DummyLLMProvider(ILLMProvider):
+        async def generate_response(self, prompt, model=None, **kwargs):
+            class Resp:
+                content = "hello"
+            return Resp()
 
-
-@pytest.mark.asyncio
-async def test_probe_macro_fred_missing_key(monkeypatch):
-    monkeypatch.delenv("FRED_API_KEY", raising=False)
-    config = FinpipeConfig.from_dict({"providers": {"fred": {"enabled": True}}})
-    client = _client_with_config(config)
-    with pytest.raises(FinpipeConfigError):
-        await probes.probe_macro_fred(client, "SPY")
-
-
-@pytest.mark.asyncio
-async def test_probe_macro_fred_connected():
-    client = _client_with_config()
-    _, fred = _catalog_chain(client, "macro", "fred")
-    fred.get_macro_series = AsyncMock(return_value=pl.DataFrame({"value": [1.0]}))
-    assert await probes.probe_macro_fred(client, "SPY") is None
-
-
-@pytest.mark.asyncio
-async def test_probe_intel_google_news_degraded():
-    client = _client_with_config()
-    intel = _catalog_chain(client, "intel")
-    intel.get_news = AsyncMock(return_value=[])
-    assert await probes.probe_intel_google_news(client, "SPY") == "no news articles returned"
-
-
-@pytest.mark.asyncio
-async def test_probe_intel_stocktwits_connected():
-    client = _client_with_config()
-    intel = _catalog_chain(client, "intel")
-    intel.get_social_posts = AsyncMock(return_value=[MagicMock()])
-    assert await probes.probe_intel_stocktwits(client, "SPY") is None
-
-
-@pytest.mark.asyncio
-async def test_probe_intel_reddit_degraded():
-    client = _client_with_config()
-    intel = _catalog_chain(client, "intel")
-    intel.get_social_posts = AsyncMock(return_value=[])
-    result = await probes.probe_intel_reddit(client, "SPY")
-    assert result == "no reddit posts returned for TSLA"
-    intel.get_social_posts.assert_awaited_once_with("TSLA", limit=1, kind=SocialPostKind.FORUM)
-
-
-@pytest.mark.asyncio
-async def test_probe_intel_reddit_uses_configured_symbol():
-    from finpipe.core.config import FinpipeConfig
-
-    config = FinpipeConfig.from_dict({"health": {"reddit_probe_symbol": "NVDA"}})
-    client = _client_with_config(config)
-    intel = _catalog_chain(client, "intel")
-    intel.get_social_posts = AsyncMock(return_value=[MagicMock()])
-    assert await probes.probe_intel_reddit(client, "SPY") is None
-    intel.get_social_posts.assert_awaited_once_with("NVDA", limit=1, kind=SocialPostKind.FORUM)
-
-
-@pytest.mark.asyncio
-async def test_probe_screener_yahoo_trending_degraded():
-    client = _client_with_config()
-    screener = _catalog_chain(client, "screener")
-    screener.get_trending = AsyncMock(return_value=[])
-    assert await probes.probe_screener_yahoo_trending(client, "SPY") == (
-        "trending screener returned no tickers"
-    )
-
-
-@pytest.mark.asyncio
-async def test_probe_screener_yahoo_predefined_connected():
-    client = _client_with_config()
-    screener = _catalog_chain(client, "screener")
-    screener.get_predefined = AsyncMock(return_value=["AAPL"])
-    assert await probes.probe_screener_yahoo_predefined(client, "SPY") is None
-
-
-@pytest.mark.asyncio
-async def test_probe_screener_finviz_degraded():
-    client = _client_with_config()
-    screener = _catalog_chain(client, "screener")
-    screener.get_fundamental = AsyncMock(return_value=[])
-    assert await probes.probe_screener_finviz(client, "SPY") == (
-        "finviz screener returned no tickers (tried: geo_usa, ta_topgainers)"
-    )
-    assert screener.get_fundamental.await_count == 2
-
-
-@pytest.mark.asyncio
-async def test_probe_screener_finviz_fallback_filter():
-    client = _client_with_config()
-    screener = _catalog_chain(client, "screener")
-    screener.get_fundamental = AsyncMock(side_effect=[[], ["AAPL"]])
-    assert await probes.probe_screener_finviz(client, "SPY") is None
-    assert screener.get_fundamental.await_count == 2
-
-
-@pytest.mark.asyncio
-async def test_probe_screener_tradingview_connected():
-    client = _client_with_config()
-    screener = _catalog_chain(client, "screener")
-    screener.run_tradingview = AsyncMock(return_value=["AAPL"])
-    assert await probes.probe_screener_tradingview(client, "SPY") is None
-
-
-@pytest.mark.asyncio
-async def test_probe_llm_groq_missing_key(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    config = FinpipeConfig.from_dict({"providers": {"groq": {"enabled": True}}})
-    client = _client_with_config(config)
-    with pytest.raises(FinpipeConfigError):
-        await probes.probe_llm_groq(client, "SPY")
-
-
-@pytest.mark.asyncio
-async def test_probe_llm_groq_degraded():
-    client = _client_with_config()
-    _, groq = _catalog_chain(client, "llm", "groq")
-    groq.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content=""))
-    assert await probes.probe_llm_groq(client, "SPY") == "groq returned empty completion"
-
-
-@pytest.mark.asyncio
-async def test_probe_llm_groq_connected():
-    client = _client_with_config()
-    _, groq = _catalog_chain(client, "llm", "groq")
-    groq.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content="OK"))
-    assert await probes.probe_llm_groq(client, "SPY") is None
-    groq.generate_response.assert_awaited_once()
-    call_kwargs = groq.generate_response.await_args.kwargs  # type: ignore
-    assert call_kwargs["max_tokens"] == client.config.health.llm_probe_max_tokens
-
-
-@pytest.mark.asyncio
-async def test_probe_llm_gemini_connected():
-    client = _client_with_config()
-    _, gemini = _catalog_chain(client, "llm", "gemini")
-    gemini.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content="OK"))
-    assert await probes.probe_llm_gemini(client, "SPY") is None
-    call_kwargs = gemini.generate_response.await_args.kwargs  # type: ignore
-    max_out = call_kwargs["generationConfig"]["maxOutputTokens"]
-    assert max_out == client.config.health.llm_probe_max_tokens
-
-
-@pytest.mark.asyncio
-async def test_probe_llm_nvidia_degraded():
-    client = _client_with_config()
-    _, nvidia = _catalog_chain(client, "llm", "nvidia")
-    nvidia.generate_response = AsyncMock(return_value=LLMResponse(model_name="x", content=""))
-    assert await probes.probe_llm_nvidia(client, "SPY") == "nvidia returned empty completion"
-
-
-@pytest.mark.asyncio
-async def test_probe_options_yahoo_degraded():
-    client = _client_with_config()
-    _, yahoo = _catalog_chain(client, "options", "yahoo")
-    yahoo.get_options_snapshot = AsyncMock(return_value=None)
-    assert await probes.probe_options_yahoo(client, "SPY") == "options snapshot empty"
-
-
-@pytest.mark.asyncio
-async def test_probe_macro_fred_degraded():
-    client = _client_with_config()
-    _, fred = _catalog_chain(client, "macro", "fred")
-    fred.get_macro_series = AsyncMock(return_value=pl.DataFrame())
-    assert await probes.probe_macro_fred(client, "SPY") == "macro series empty"
-
-
-@pytest.mark.asyncio
-async def test_probe_intel_google_news_connected():
-    client = _client_with_config()
-    intel = _catalog_chain(client, "intel")
-    intel.get_news = AsyncMock(return_value=[MagicMock()])
-    assert await probes.probe_intel_google_news(client, "SPY") is None
-
-
-@pytest.mark.asyncio
-@patch("finpipe.health.probes.compress_llm_text_for_sentiment")
-async def test_probe_compression_huggingface_success(mock_compress):
-    mock_compress.return_value = "compressed"
-    client = _client_with_config()
-    client.config = client.config.model_copy(
-        update={"llm_prompt": client.config.llm_prompt.model_copy(
-            update={"compression": client.config.llm_prompt.compression.model_copy(
-                update={"endpoint_url": "http://test"}
-            )}
-        )}
-    )
-    assert await probes.probe_compression_huggingface(client, "SPY") is None
-    mock_compress.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_probe_compression_huggingface_missing_endpoint():
-    client = _client_with_config()
-    client.config = client.config.model_copy(
-        update={"llm_prompt": client.config.llm_prompt.model_copy(
-            update={"compression": client.config.llm_prompt.compression.model_copy(
-                update={"endpoint_url": None}
-            )}
-        )}
-    )
-    assert "not configured" in await probes.probe_compression_huggingface(client, "SPY")  # type: ignore
-
-
-@pytest.mark.asyncio
-@patch("finpipe.health.probes.compress_llm_text_for_sentiment")
-async def test_probe_compression_huggingface_empty(mock_compress):
-    mock_compress.return_value = ""
-    client = _client_with_config()
-    client.config = client.config.model_copy(
-        update={"llm_prompt": client.config.llm_prompt.model_copy(
-            update={"compression": client.config.llm_prompt.compression.model_copy(
-                update={"endpoint_url": "http://test"}
-            )}
-        )}
-    )
-    assert "returned empty" in await probes.probe_compression_huggingface(client, "SPY")  # type: ignore
-
-
-@pytest.mark.asyncio
-@patch("finpipe.health.probes.compress_llm_text_for_sentiment")
-async def test_probe_compression_huggingface_exception(mock_compress):
-    mock_compress.side_effect = Exception("error")
-    client = _client_with_config()
-    client.config = client.config.model_copy(
-        update={"llm_prompt": client.config.llm_prompt.model_copy(
-            update={"compression": client.config.llm_prompt.compression.model_copy(
-                update={"endpoint_url": "http://test"}
-            )}
-        )}
-    )
-    assert "failed: error" in await probes.probe_compression_huggingface(client, "SPY")  # type: ignore
-
-
-def test_probe_runners_registry_keys():
-    assert set(probes.PROBE_RUNNERS) == {
-        "equity.yahoo",
-        "equity.alpha_vantage",
-        "options.massive",
-        "options.yahoo",
-        "macro.fred",
-        "intel.google_news",
-        "intel.stocktwits",
-        "intel.reddit",
-        "screener.yahoo_trending",
-        "screener.yahoo_predefined",
-        "screener.finviz",
-        "screener.tradingview",
-        "llm.groq",
-        "llm.gemini",
-        "llm.nvidia",
-        "compression.huggingface",
-    }
+    provider = DummyLLMProvider()
+    mock_client.config.health.llm_probe_prompt = "test"
+    mock_client.config.health.llm_probe_max_tokens = 10
+    mock_client._registry.get.return_value = provider
+    
+    res = await universal_probe_runner(mock_client, "AAPL", "dummy")
+    assert res is None

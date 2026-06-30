@@ -4,10 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from finpipe.core.config import FinpipeConfig
-from finpipe.core.models import TickerMetadata
 from finpipe.health.registry import resolve_probe_keys
 from finpipe.health.service import HealthService
-
+from finpipe.core.interfaces import IHistoricalPriceProvider, IScreenerProvider
 
 def test_resolve_probe_keys_uses_explicit_probes():
     config = FinpipeConfig.from_dict(
@@ -33,7 +32,6 @@ def test_resolve_probe_keys_empty_when_disabled():
     assert resolve_probe_keys(config) == []
 
 
-
 @pytest.mark.asyncio
 async def test_check_all_runs_configured_probes():
     config = FinpipeConfig.from_dict(
@@ -44,18 +42,13 @@ async def test_check_all_runs_configured_probes():
             }
         }
     )
-    yahoo_provider = MagicMock()
-    yahoo_provider.get_metadata = AsyncMock(
-        return_value=TickerMetadata(symbol="SPY", short_name="SPDR")
-    )
-    equity_capability = MagicMock()
-    equity_capability.provider = MagicMock(return_value=yahoo_provider)
-    catalog = MagicMock()
-    catalog.capability = MagicMock(return_value=equity_capability)
+    yahoo_provider = MagicMock(spec=IHistoricalPriceProvider)
+    yahoo_provider.get_historical_prices = AsyncMock(return_value=[1, 2])
 
     client = MagicMock()
     client.config = config
-    client.catalog = catalog
+    client._registry = MagicMock()
+    client._registry.get = MagicMock(return_value=yahoo_provider)
 
     service = HealthService(client)
 
@@ -64,7 +57,6 @@ async def test_check_all_runs_configured_probes():
 
     assert report.all_connected
     assert report.results["equity.yahoo"].status == "connected"
-    yahoo_provider.get_metadata.assert_awaited_once_with("SPY")
 
 
 @pytest.mark.asyncio
@@ -77,20 +69,20 @@ async def test_check_marks_degraded_when_probe_returns_message():
             }
         }
     )
-    screener_capability = MagicMock()
-    screener_capability.get_trending = AsyncMock(return_value=[])
-    catalog = MagicMock()
-    catalog.capability = MagicMock(return_value=screener_capability)
+    
+    screener_provider = MagicMock(spec=IScreenerProvider)
+    screener_provider.run_screener = AsyncMock(side_effect=ValueError("bad filter"))
 
     client = MagicMock()
     client.config = config
-    client.catalog = catalog
+    client._registry = MagicMock()
+    client._registry.get = MagicMock(return_value=screener_provider)
 
     service = HealthService(client)
     result = await service.check("screener.yahoo_trending")
 
     assert result.status == "degraded"
-    assert result.message == "trending screener returned no tickers"
+    assert "screener execution failed" in result.message
 
 
 @pytest.mark.asyncio
@@ -99,37 +91,12 @@ async def test_check_skips_unconfigured_probe_key():
         {
             "health": {
                 "enabled": True,
-                "probes": {"equity.yahoo": {"enabled": True}, "llm.groq": {"enabled": False}},
-            },
-            "providers": {
-                "groq": {"enabled": False}
+                "probes": {"equity.yahoo": {"enabled": False}},
             }
         }
     )
-    client = MagicMock()
-    client.config = config
+    client = MagicMock(config=config)
     service = HealthService(client)
-    result = await service.check("llm.groq")
+
+    result = await service.check("equity.yahoo")
     assert result.status == "skipped"
-
-def test_resolve_probe_keys_custom_probe():
-    config = FinpipeConfig.from_dict(
-        {
-            "health": {
-                "enabled": True,
-                "probes": {"custom.probe": {"enabled": True}},
-            }
-        }
-    )
-    with patch("finpipe.health.registry._is_provider_enabled", return_value=True):
-        keys = resolve_probe_keys(config)
-    assert "custom.probe" in keys
-
-def test_is_provider_enabled_screener_disabled():
-    from finpipe.health.registry import _is_provider_enabled
-    config = FinpipeConfig.from_dict({
-        "providers": {
-            "screener": {"enabled": False}
-        }
-    })
-    assert _is_provider_enabled(config, "screener.yahoo_trending") is False

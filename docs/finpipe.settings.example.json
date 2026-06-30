@@ -21,7 +21,7 @@
 
   "health": {
     "enabled": true,
-    "probe_symbol": "SPY",
+    "probe_symbol": "AAPL",
     "reddit_probe_symbol": "TSLA",
     "finviz_probe_filter": "geo_usa",
     "llm_probe_prompt": "Reply with exactly: OK",

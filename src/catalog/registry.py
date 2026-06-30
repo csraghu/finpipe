@@ -7,7 +7,7 @@ from finpipe.catalog.models import (
 )
 
 _PROBE_ACTIONS: dict[str, str] = {
-    "equity.yahoo": "Fetch metadata for health.probe_symbol (default SPY)",
+    "equity.yahoo": "Fetch metadata for health.probe_symbol (default AAPL)",
     "equity.alpha_vantage": "Fetch metadata for probe_symbol via Alpha Vantage",
     "options.massive": "Fetch one-row options snapshot for probe_symbol",
     "options.yahoo": "Fetch one-row Yahoo options snapshot for probe_symbol",
