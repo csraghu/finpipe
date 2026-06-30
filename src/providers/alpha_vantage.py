@@ -112,26 +112,51 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
         cached = self._cache.get(cache_key)
         if cached is not None:
             return TickerMetadata(**cached)
+            
         params = {"function": "OVERVIEW", "symbol": symbol, "apikey": self._api_key}
         response = await self._client.request("GET", self._base_url, params=params)
         data = response.json()
+        
         if not data or "Symbol" not in data:
-            raise FinpipeDataNotFoundError(f"Alpha Vantage metadata not found for {symbol}")
-        try:
-            mcap = float(data.get("MarketCapitalization", 0))
-        except ValueError:
-            mcap = None
-        metadata = TickerMetadata(
-            symbol=data.get("Symbol", symbol),
-            short_name=data.get("Name"),
-            long_name=data.get("Name"),
-            sector=data.get("Sector"),
-            industry=data.get("Industry"),
-            market_cap=mcap,
-            exchange=data.get("Exchange"),
-            currency=data.get("Currency"),
-            description=data.get("Description"),
-        )
+            params_etf = {"function": "ETF_PROFILE", "symbol": symbol, "apikey": self._api_key}
+            response_etf = await self._client.request("GET", self._base_url, params=params_etf)
+            data_etf = response_etf.json()
+            if not data_etf or "symbol" not in data_etf:
+                raise FinpipeDataNotFoundError(f"Alpha Vantage metadata not found for {symbol} (tried OVERVIEW and ETF_PROFILE)")
+            
+            try:
+                mcap = float(data_etf.get("net_assets", 0))
+            except ValueError:
+                mcap = None
+                
+            metadata = TickerMetadata(
+                symbol=data_etf.get("symbol", symbol),
+                short_name=data_etf.get("name"),
+                long_name=data_etf.get("name"),
+                sector="ETF",
+                industry="ETF",
+                market_cap=mcap,
+                exchange=data_etf.get("exchange", "Unknown"),
+                currency="USD",
+                description=data_etf.get("description"),
+            )
+        else:
+            try:
+                mcap = float(data.get("MarketCapitalization", 0))
+            except ValueError:
+                mcap = None
+            metadata = TickerMetadata(
+                symbol=data.get("Symbol", symbol),
+                short_name=data.get("Name"),
+                long_name=data.get("Name"),
+                sector=data.get("Sector"),
+                industry=data.get("Industry"),
+                market_cap=mcap,
+                exchange=data.get("Exchange"),
+                currency=data.get("Currency"),
+                description=data.get("Description"),
+            )
+            
         self._cache.set(cache_key, metadata.model_dump(), self._provider_config.ttls.metadata_sec)
         return metadata
 
