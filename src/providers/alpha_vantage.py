@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 import polars as pl
 from finpipe.core.config import FinpipeConfig
-from finpipe.core.exceptions import FinpipeDataNotFoundError
+from finpipe.core.exceptions import FinpipeDataNotFoundError, FinpipeRateLimitExceededError
 from finpipe.core.interfaces import IHistoricalPriceProvider, IMetadataProvider, IProviderDescribe
 from finpipe.core.models import TickerMetadata
 from finpipe.core.registry import BuildContext, register_provider
@@ -42,6 +42,15 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
     async def close(self) -> None:
         await self._client.close()
 
+    def _check_rate_limit(self, data: Any) -> None:
+        if isinstance(data, dict):
+            info = data.get("Information", "")
+            if "rate limit" in info.lower() or "frequency" in info.lower():
+                raise FinpipeRateLimitExceededError("Alpha Vantage rate limit exceeded")
+        elif isinstance(data, str):
+            if "Information" in data and ("rate limit" in data.lower() or "frequency" in data.lower()):
+                raise FinpipeRateLimitExceededError("Alpha Vantage rate limit exceeded")
+
     def _format_dataframe(self, df: pd.DataFrame) -> pl.DataFrame | pd.DataFrame:
         if df.empty:
             df = pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"])
@@ -71,6 +80,7 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
             if interval != "1d":
                 params["interval"] = interval
             response = await self._client.request("GET", self._base_url, params=params)
+            self._check_rate_limit(response.text)
             if "Error Message" in response.text or "Invalid API call" in response.text:
                 raise FinpipeDataNotFoundError(
                     f"Alpha Vantage returned an error or invalid ticker for {symbol}"
@@ -99,7 +109,9 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
             return cached
         params = {"function": "GLOBAL_QUOTE", "symbol": symbol, "apikey": self._api_key}
         response = await self._client.request("GET", self._base_url, params=params)
-        quote = response.json().get("Global Quote", {})
+        data = response.json()
+        self._check_rate_limit(data)
+        quote = data.get("Global Quote", {})
         price_str = quote.get("05. price")
         if not price_str:
             return None
@@ -116,11 +128,13 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
         params = {"function": "OVERVIEW", "symbol": symbol, "apikey": self._api_key}
         response = await self._client.request("GET", self._base_url, params=params)
         data = response.json()
+        self._check_rate_limit(data)
         
         if not data or "Symbol" not in data:
             params_etf = {"function": "ETF_PROFILE", "symbol": symbol, "apikey": self._api_key}
             response_etf = await self._client.request("GET", self._base_url, params=params_etf)
             data_etf = response_etf.json()
+            self._check_rate_limit(data_etf)
             if not data_etf or "symbol" not in data_etf:
                 raise FinpipeDataNotFoundError(f"Alpha Vantage metadata not found for {symbol} (tried OVERVIEW and ETF_PROFILE)")
             
