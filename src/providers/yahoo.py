@@ -60,6 +60,9 @@ class YahooFinanceAdapter(
             details={"backend": "yfinance"},
         )
 
+    def _sanitize_symbol(self, symbol: str) -> str:
+        return symbol.replace("/", "-").replace(".", "-")
+
     async def _execute_with_resilience(
         self, func: Callable[..., Any], *args: Any, **kwargs: Any
     ) -> Any:
@@ -113,7 +116,8 @@ class YahooFinanceAdapter(
         if cached is not None:
             return self._format_dataframe(pd.DataFrame.from_dict(cached))
 
-        ticker = yf.Ticker(symbol)
+        sanitized = self._sanitize_symbol(symbol)
+        ticker = yf.Ticker(sanitized)
         df = await self._execute_with_resilience(
             ticker.history,
             start=start_date.strftime("%Y-%m-%d"),
@@ -133,7 +137,8 @@ class YahooFinanceAdapter(
         if cached is not None:
             return cached
 
-        ticker = yf.Ticker(symbol)
+        sanitized = self._sanitize_symbol(symbol)
+        ticker = yf.Ticker(sanitized)
         info = await self._execute_with_resilience(lambda: ticker.fast_info)
         price = info.get("lastPrice")
         if price is not None:
@@ -146,7 +151,8 @@ class YahooFinanceAdapter(
         if cached is not None:
             return TickerMetadata(**cached)
 
-        ticker = yf.Ticker(symbol)
+        sanitized = self._sanitize_symbol(symbol)
+        ticker = yf.Ticker(sanitized)
         info = await self._execute_with_resilience(lambda: ticker.info)
         metadata = TickerMetadata(
             symbol=symbol,
@@ -170,8 +176,8 @@ class YahooFinanceAdapter(
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
-
-        ticker = yf.Ticker(symbol)
+        sanitized = self._sanitize_symbol(symbol)
+        ticker = yf.Ticker(sanitized)
         balance_sheet = await self._execute_with_resilience(lambda: ticker.balance_sheet)
         income_stmt = await self._execute_with_resilience(lambda: ticker.income_stmt)
         cash_flow = await self._execute_with_resilience(lambda: ticker.cashflow)
@@ -188,7 +194,8 @@ class YahooFinanceAdapter(
     async def get_options_chain(
         self, symbol: str, expiration_date: date | None = None
     ) -> OptionChain:
-        ticker = yf.Ticker(symbol)
+        sanitized = self._sanitize_symbol(symbol)
+        ticker = yf.Ticker(sanitized)
 
         def _fetch_chain():
             exps = ticker.options
@@ -249,7 +256,8 @@ class YahooFinanceAdapter(
         return self._format_dataframe(pd.DataFrame(data))
 
     async def fetch_options_contracts(self, symbol: str) -> list[dict[str, Any]]:
-        ticker = yf.Ticker(symbol)
+        sanitized = self._sanitize_symbol(symbol)
+        ticker = yf.Ticker(sanitized)
         exps = await self._execute_with_resilience(lambda: ticker.options)
         contracts: list[dict[str, Any]] = []
         for expiration in (exps or ())[:6]:
