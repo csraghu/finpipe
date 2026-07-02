@@ -12,6 +12,7 @@ from finpipe.providers.gemini import GeminiAdapter
 from finpipe.providers.groq import GroqAdapter
 from finpipe.providers.massive import MassiveOptionsAdapter
 from finpipe.providers.nvidia import NvidiaAdapter
+from finpipe.providers.schwab import SchwabAdapter
 from finpipe.providers.screener import ScreenerAdapter
 from finpipe.providers.sentiment import NewsSentimentAdapter
 from finpipe.providers.tradingview import TradingViewAdapter
@@ -30,6 +31,7 @@ _ADAPTER_KEYS = (
     "groq",
     "gemini",
     "nvidia",
+    "schwab",
 )
 
 
@@ -52,6 +54,7 @@ class AdapterRegistry:
             "groq": GroqAdapter(self._config),
             "gemini": GeminiAdapter(self._config),
             "nvidia": NvidiaAdapter(self._config),
+            "schwab": SchwabAdapter(self._config),
         }
 
     def get(self, name: str) -> Any:
@@ -61,10 +64,10 @@ class AdapterRegistry:
             raise KeyError(f"Unknown adapter key: {name}") from exc
 
     def equity_adapters(self) -> dict[str, Any]:
-        return {key: self._adapters[key] for key in ("yahoo", "alpha_vantage")}
+        return {key: self._adapters[key] for key in ("yahoo", "alpha_vantage", "schwab")}
 
     def options_adapters(self) -> dict[str, Any]:
-        return {key: self._adapters[key] for key in ("massive", "yahoo")}
+        return {key: self._adapters[key] for key in ("massive", "yahoo", "schwab")}
 
     def keys(self) -> tuple[str, ...]:
         return _ADAPTER_KEYS
@@ -87,6 +90,7 @@ class AdapterRegistry:
             "groq",
             "gemini",
             "nvidia",
+            "schwab",
         ):
             adapter = self._adapters.get(key)
             if adapter is not None:

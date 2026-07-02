@@ -5,6 +5,7 @@ from finpipe.providers import (  # noqa: F401
     groq,
     massive,
     nvidia,
+    schwab,
     screener,
     sentiment,
     tradingview,

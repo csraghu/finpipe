@@ -14,7 +14,7 @@ class LlmProviderBase:
     _config: FinpipeConfig
     _compression_client: Any = None
 
-    async def prepare_prompt(self, text: str) -> str:
+    async def prepare_prompt(self, text: str, symbol: str | None = None) -> str:
         """Normalize and optionally compress prompt text for LLM inference."""
         if self._compression_client is None:
             from finpipe.network.resilience import create_resilient_http_client
@@ -22,4 +22,4 @@ class LlmProviderBase:
                 "huggingface_compression",
                 self._config.llm_prompt.compression.rate_limits,
             )
-        return await prepare_llm_prompt(text, self._config.llm_prompt.compression, client=self._compression_client)
+        return await prepare_llm_prompt(text, self._config.llm_prompt.compression, client=self._compression_client, symbol=symbol)

@@ -223,7 +223,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
             details = c.get("details", {})
             c_type = details.get("contract_type", "").lower()
             exp_date_str = details.get("expiration_date")
-            
+
             if not target_exp and exp_date_str:
                 target_exp = exp_date_str
 
@@ -232,7 +232,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
 
             day = c.get("day", {})
             quote = c.get("last_quote", {})
-            
+
             contract = OptionContract(
                 contract_symbol=details.get("ticker", ""),
                 strike=float(details.get("strike_price", 0.0)),
@@ -244,7 +244,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
                 implied_volatility=c.get("implied_volatility"),
                 in_the_money=False,
             )
-            
+
             if c_type == "call":
                 calls.append(contract)
             elif c_type == "put":
@@ -252,7 +252,7 @@ class MassiveOptionsAdapter(IOptionsProvider, IProviderDescribe):
 
         if not target_exp:
             target_exp = str(date.today())
-            
+
         exp_dt = datetime.strptime(target_exp, "%Y-%m-%d").date()
         chain = OptionChain(
             symbol=symbol,

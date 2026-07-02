@@ -11,17 +11,17 @@ from finpipe.core.exceptions import (
     FinpipeProviderDownError,
     FinpipeRateLimitExceededError,
 )
-from finpipe.core.llm_compress import compress_llm_text_for_sentiment
-from finpipe.core.models import SocialPostKind
 from finpipe.core.interfaces import (
     IHistoricalPriceProvider,
-    IMetadataProvider,
-    IOptionsProvider,
+    ILLMProvider,
     IMacroProvider,
     IMarketIntelProvider,
+    IMetadataProvider,
+    IOptionsProvider,
     IScreenerProvider,
-    ILLMProvider,
 )
+from finpipe.core.llm_compress import compress_llm_text_for_sentiment
+from finpipe.core.models import SocialPostKind
 
 if TYPE_CHECKING:
     from finpipe.client import Client
@@ -122,7 +122,7 @@ async def universal_probe_runner(client: Client, symbol: str, provider_id: str) 
         except Exception as e:
             errors.append(f"get_social_posts (MICROBLOG) failed: {e}")
             logger.error(f"{provider_id} get_social_posts error:\n{traceback.format_exc()}")
-            
+
         try:
             posts = await provider.get_social_posts(symbol, limit=1, kind=SocialPostKind.FORUM)
         except NotImplementedError:
@@ -163,7 +163,7 @@ async def universal_probe_runner(client: Client, symbol: str, provider_id: str) 
         try:
             health = client.config.health
             prompt = f"{health.llm_probe_prompt} [{time.perf_counter():.6f}]"
-            
+
             if provider_id == "gemini":
                 resp = await provider.generate_response(
                     prompt,
@@ -173,7 +173,7 @@ async def universal_probe_runner(client: Client, symbol: str, provider_id: str) 
                 resp = await provider.generate_response(
                     prompt, max_tokens=health.llm_probe_max_tokens, temperature=0
                 )
-                
+
             if not resp.content or not str(resp.content).strip():
                 errors.append("generate_response returned empty")
         except (FinpipeConfigError, FinpipeProviderDownError, FinpipeRateLimitExceededError):

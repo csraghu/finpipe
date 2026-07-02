@@ -4,9 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from finpipe.core.config import FinpipeConfig
+from finpipe.core.interfaces import IHistoricalPriceProvider, IScreenerProvider
 from finpipe.health.registry import resolve_probe_keys
 from finpipe.health.service import HealthService
-from finpipe.core.interfaces import IHistoricalPriceProvider, IScreenerProvider
+
 
 def test_resolve_probe_keys_uses_explicit_probes():
     config = FinpipeConfig.from_dict(
@@ -69,7 +70,7 @@ async def test_check_marks_degraded_when_probe_returns_message():
             }
         }
     )
-    
+
     screener_provider = MagicMock(spec=IScreenerProvider)
     screener_provider.run_screener = AsyncMock(side_effect=ValueError("bad filter"))
 

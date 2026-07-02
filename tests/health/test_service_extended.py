@@ -38,7 +38,7 @@ async def test_check_handles_config_error():
         }
     )
     client = MagicMock(config=config)
-    
+
     # Mock universal probe to raise FinpipeConfigError
     yahoo = MagicMock()
     yahoo.get_historical_prices = AsyncMock(side_effect=FinpipeConfigError("unconfigured"))
@@ -56,13 +56,13 @@ async def test_check_handles_provider_down():
         {"health": {"enabled": True, "probes": {"equity.yahoo": {"enabled": True}}}}
     )
     client = MagicMock(config=config)
-    
+
     # Let registry get a mock that raises when called
     from finpipe.core.interfaces import IHistoricalPriceProvider
     provider = MagicMock(spec=IHistoricalPriceProvider)
     provider.get_historical_prices = AsyncMock(side_effect=FinpipeProviderDownError("down"))
     client._registry.get = MagicMock(return_value=provider)
-    
+
     service = HealthService(client)
     result = await service.check("equity.yahoo")
     assert result.status == "error"
@@ -74,12 +74,12 @@ async def test_check_handles_rate_limit():
         {"health": {"enabled": True, "probes": {"equity.yahoo": {"enabled": True}}}}
     )
     client = MagicMock(config=config)
-    
+
     from finpipe.core.interfaces import IHistoricalPriceProvider
     provider = MagicMock(spec=IHistoricalPriceProvider)
     provider.get_historical_prices = AsyncMock(side_effect=FinpipeRateLimitExceededError("slow"))
     client._registry.get = MagicMock(return_value=provider)
-    
+
     service = HealthService(client)
     result = await service.check("equity.yahoo")
     assert result.status == "error"

@@ -124,12 +124,12 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
         cached = self._cache.get(cache_key)
         if cached is not None:
             return TickerMetadata(**cached)
-            
+
         params = {"function": "OVERVIEW", "symbol": symbol, "apikey": self._api_key}
         response = await self._client.request("GET", self._base_url, params=params)
         data = response.json()
         self._check_rate_limit(data)
-        
+
         if not data or "Symbol" not in data:
             params_etf = {"function": "ETF_PROFILE", "symbol": symbol, "apikey": self._api_key}
             response_etf = await self._client.request("GET", self._base_url, params=params_etf)
@@ -137,12 +137,12 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
             self._check_rate_limit(data_etf)
             if not data_etf or "symbol" not in data_etf:
                 raise FinpipeDataNotFoundError(f"Alpha Vantage metadata not found for {symbol} (tried OVERVIEW and ETF_PROFILE)")
-            
+
             try:
                 mcap = float(data_etf.get("net_assets", 0))
             except ValueError:
                 mcap = None
-                
+
             metadata = TickerMetadata(
                 symbol=data_etf.get("symbol", symbol),
                 short_name=data_etf.get("name"),
@@ -170,7 +170,7 @@ class AlphaVantageAdapter(IHistoricalPriceProvider, IMetadataProvider, IProvider
                 currency=data.get("Currency"),
                 description=data.get("Description"),
             )
-            
+
         self._cache.set(cache_key, metadata.model_dump(), self._provider_config.ttls.metadata_sec)
         return metadata
 

@@ -20,6 +20,7 @@ async def prepare_llm_prompt(
     text: str,
     compression: LlmPromptCompressionConfig,
     client: Any = None,
+    symbol: str | None = None,
 ) -> str:
     """Sanitize noise, then optionally compress with sentiment-aware LLMLingua."""
     prepared = sanitize_llm_text(text)
@@ -38,6 +39,7 @@ async def prepare_llm_prompt(
             model_name=compression.model_name,
             endpoint_url=compression.endpoint_url,
             http_client=client,
+            symbol=symbol,
         )
     except Exception as exc:
         logger.warning(
@@ -47,6 +49,6 @@ async def prepare_llm_prompt(
         return prepared
 
 
-async def prepare_gemini_prompt(text: str, compression: LlmPromptCompressionConfig, client: Any = None) -> str:
+async def prepare_gemini_prompt(text: str, compression: LlmPromptCompressionConfig, client: Any = None, symbol: str | None = None) -> str:
     """Backward-compatible alias for :func:`prepare_llm_prompt`."""
-    return await prepare_llm_prompt(text, compression, client=client)
+    return await prepare_llm_prompt(text, compression, client=client, symbol=symbol)

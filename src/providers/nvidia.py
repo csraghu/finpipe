@@ -64,7 +64,8 @@ class NvidiaAdapter(LlmProviderBase, ILLMProvider, IProviderDescribe):
     async def generate_response(
         self, prompt: str, model: str | None = None, **kwargs: Any
     ) -> LLMResponse:
-        prompt = await self.prepare_prompt(prompt)
+        symbol = kwargs.pop("symbol", None)
+        prompt = await self.prepare_prompt(prompt, symbol=symbol)
         model_name = model or self._provider_config.model
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {

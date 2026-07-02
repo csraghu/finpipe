@@ -1,23 +1,21 @@
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from finpipe.health.probes import universal_probe_runner
+
+import pytest
 from finpipe.core.exceptions import (
-    FinpipeConfigError,
     FinpipeProviderDownError,
-    FinpipeRateLimitExceededError,
 )
 from finpipe.core.interfaces import (
     IHistoricalPriceProvider,
-    IMetadataProvider,
-    IOptionsProvider,
+    ILLMProvider,
     IMacroProvider,
     IMarketIntelProvider,
+    IMetadataProvider,
+    IOptionsProvider,
     IScreenerProvider,
-    ILLMProvider,
 )
-from finpipe.core.models import TickerMetadata
+from finpipe.health.probes import universal_probe_runner
 
 
 @pytest.fixture
@@ -39,10 +37,10 @@ async def test_universal_probe_not_found(mock_client):
 async def test_universal_probe_success_equity(mock_client):
     provider = MagicMock(spec=IHistoricalPriceProvider)
     provider.get_historical_prices = AsyncMock(return_value=[1, 2, 3])
-    
+
     # Needs to not implement others
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert res is None
 
@@ -52,18 +50,18 @@ async def test_universal_probe_degraded_equity(mock_client):
     class DummyEquityProvider(IHistoricalPriceProvider, IMetadataProvider):
         async def get_historical_prices(self, symbol, start, end):
             raise ValueError("bad data")
-            
+
         async def get_metadata(self, symbol):
             class Meta:
                 symbol = None
             return Meta()
-            
+
         async def get_financial_statements(self, symbol):
             raise NotImplementedError()
 
     provider = DummyEquityProvider()
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert "get_historical_prices failed" in res
     assert "missing symbol" in res
@@ -77,7 +75,7 @@ async def test_universal_probe_raises_finpipe_exceptions(mock_client):
 
     provider = DummyEquityProvider()
     mock_client._registry.get.return_value = provider
-    
+
     with pytest.raises(FinpipeProviderDownError):
         await universal_probe_runner(mock_client, "AAPL", "dummy")
 
@@ -87,13 +85,13 @@ async def test_universal_probe_success_options(mock_client):
     class DummyOptionsProvider(IOptionsProvider):
         async def get_options_chain(self, symbol):
             return {"chain": True}
-            
+
         async def get_options_snapshot(self, symbol, limit=1):
             return [{"snap": True}]
 
     provider = DummyOptionsProvider()
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert res is None
 
@@ -103,7 +101,7 @@ async def test_universal_probe_degraded_options(mock_client):
     class DummyOptionsProvider(IOptionsProvider):
         async def get_options_chain(self, symbol):
             raise ValueError("chain error")
-            
+
         async def get_options_snapshot(self, symbol, limit=1):
             class EmptyRet:
                 def is_empty(self): return True
@@ -111,7 +109,7 @@ async def test_universal_probe_degraded_options(mock_client):
 
     provider = DummyOptionsProvider()
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert "get_options_chain failed" in res
     assert "get_options_snapshot returned empty" in res
@@ -125,7 +123,7 @@ async def test_universal_probe_success_macro(mock_client):
 
     provider = DummyMacroProvider()
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert res is None
 
@@ -142,7 +140,7 @@ async def test_universal_probe_success_intel(mock_client):
 
     provider = DummyIntelProvider()
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert res is None
 
@@ -155,7 +153,7 @@ async def test_universal_probe_success_screener(mock_client):
 
     provider = DummyScreenerProvider()
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert res is None
 
@@ -172,6 +170,6 @@ async def test_universal_probe_success_llm(mock_client):
     mock_client.config.health.llm_probe_prompt = "test"
     mock_client.config.health.llm_probe_max_tokens = 10
     mock_client._registry.get.return_value = provider
-    
+
     res = await universal_probe_runner(mock_client, "AAPL", "dummy")
     assert res is None

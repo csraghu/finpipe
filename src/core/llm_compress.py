@@ -50,6 +50,7 @@ async def compress_llm_text_for_sentiment(
     model_name: str = DEFAULT_LLMLINGUA_MODEL,
     endpoint_url: str | None = None,
     http_client: Any = None,
+    symbol: str | None = None,
 ) -> str:
     """Async wrapper — compression runs via remote API."""
     if not text.strip():
@@ -74,6 +75,8 @@ async def compress_llm_text_for_sentiment(
                 "target_ratio": target_ratio,
                 "model_name": model_name,
             }
+            if symbol:
+                payload["symbol"] = symbol
             if http_client is not None:
                 resp = await http_client.request("POST", endpoint_url, json=payload, headers=headers)
                 data = resp.json()

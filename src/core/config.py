@@ -15,6 +15,9 @@ _REQUIRED_KEYS: dict[str, tuple[str, str]] = {
     "gemini_api_key": ("GEMINI_API_KEY", "gemini"),
     "nvidia_api_key": ("NVIDIA_API_KEY", "nvidia"),
     "massive_api_key": ("MASSIVE_API_KEY", "massive"),
+    "schwab_app_key": ("SCHWAB_APP_KEY", "schwab"),
+    "schwab_app_secret": ("SCHWAB_APP_SECRET", "schwab"),
+    "schwab_refresh_token": ("SCHWAB_REFRESH_TOKEN", "schwab"),
 }
 
 
@@ -505,6 +508,36 @@ class TradingViewConfig(AbstractProviderConfig):
     http: HttpConfig = Field(default_factory=lambda: HttpConfig(transport="curl_cffi"))
 
 
+class SchwabTTLConfig(BaseModel):
+    """TTLs for Schwab."""
+    model_config = ConfigDict(frozen=True)
+
+    historical_prices_sec: int = Field(default=3600, ge=0)
+    live_spot_price_sec: int = Field(default=60, ge=0)
+    metadata_sec: int = Field(default=86400, ge=0)
+    options_chain_sec: int = Field(default=300, ge=0)
+    options_snapshot_sec: int = Field(default=300, ge=0)
+
+
+class SchwabConfig(AbstractProviderConfig):
+    rate_limits: RateLimitConfig = Field(
+        default_factory=lambda: RateLimitConfig(max_requests_per_minute=120)
+    )
+    ttls: SchwabTTLConfig = Field(default_factory=SchwabTTLConfig)
+    app_key: str | None = Field(default_factory=lambda: os.getenv("SCHWAB_APP_KEY"))
+    app_secret: str | None = Field(default_factory=lambda: os.getenv("SCHWAB_APP_SECRET"))
+    refresh_token: str | None = Field(default_factory=lambda: os.getenv("SCHWAB_REFRESH_TOKEN"))
+
+    def ensure_configured(self) -> None:
+        super().ensure_configured()
+        if not self.enabled:
+            return
+        if not self.app_key or not self.app_secret or not self.refresh_token:
+            raise FinpipeConfigError(
+                "Missing required Schwab configuration: SCHWAB_APP_KEY, SCHWAB_APP_SECRET, and SCHWAB_REFRESH_TOKEN"
+            )
+
+
 class ProviderGroupConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -518,6 +551,7 @@ class ProviderGroupConfig(BaseModel):
     gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     nvidia: NvidiaConfig = Field(default_factory=NvidiaConfig)
     tradingview: TradingViewConfig = Field(default_factory=TradingViewConfig)
+    schwab: SchwabConfig = Field(default_factory=SchwabConfig)
 
 
 class RoutingConfig(BaseModel):
