@@ -34,7 +34,7 @@ from ..core.errors import (
 from .ratelimit import AdaptiveRateLimiter, RpmTpmLimiter, TokenBucket
 
 if TYPE_CHECKING:
-    from ..core.config import HttpConfig, RateLimitConfig
+    from ..core.config import RateLimitConfig
     from .transport import Transport
 
 logger = logging.getLogger(__name__)

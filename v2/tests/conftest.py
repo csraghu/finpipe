@@ -11,7 +11,6 @@ from typing import Any
 
 import pytest
 
-
 _SECRET_ENV_VARS = (
     "FRED_API_KEY",
     "ALPHA_VANTAGE_API_KEY",

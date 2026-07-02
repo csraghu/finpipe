@@ -7,7 +7,6 @@ point: v1's Client() raised unless every provider was configured (review §2.4).
 from __future__ import annotations
 
 import pytest
-
 from finpipe.client import Client
 from finpipe.core.config import FinpipeConfig
 from finpipe.core.errors import FinpipeConfigError

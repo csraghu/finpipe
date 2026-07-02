@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-
 from finpipe.runtime.cache import MemoryCache, NamespacedCache, SqliteCache
 from finpipe.runtime.codec import CodecError
 

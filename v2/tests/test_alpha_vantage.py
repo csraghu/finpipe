@@ -6,12 +6,13 @@ from datetime import date, timedelta
 
 import polars as pl
 import pytest
-from pydantic import SecretStr
-
-from conftest import FakeExecutor, FakeResponse, make_runtime
 from finpipe.core.config import AlphaVantageConfig
 from finpipe.core.errors import FinpipeRateLimitExceededError
 from finpipe.providers.alpha_vantage import AlphaVantageAdapter
+from pydantic import SecretStr
+
+from conftest import FakeExecutor, FakeResponse, make_runtime
+
 
 def _adapter(executor: FakeExecutor) -> AlphaVantageAdapter:
     config = AlphaVantageConfig(api_key=SecretStr("avk"))

@@ -6,12 +6,12 @@ from datetime import date
 
 import polars as pl
 import pytest
-from pydantic import SecretStr
-
-from conftest import FakeExecutor, FakeResponse, make_runtime
 from finpipe.core.config import FredConfig
 from finpipe.core.errors import FinpipeConfigError, FinpipeParseError
 from finpipe.providers.fred import FredAdapter
+from pydantic import SecretStr
+
+from conftest import FakeExecutor, FakeResponse, make_runtime
 
 _PAYLOAD = {
     "observations": [

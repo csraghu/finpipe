@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import SecretStr
-
-from conftest import FakeExecutor, FakeResponse, make_runtime
 from finpipe.core.config import GeminiConfig, GroqConfig
 from finpipe.core.errors import FinpipeConfigError, FinpipeProviderDownError
 from finpipe.providers.llm.gemini import GeminiAdapter
 from finpipe.providers.llm.openai_compat import GroqAdapter
+from pydantic import SecretStr
+
+from conftest import FakeExecutor, FakeResponse, make_runtime
 
 _GROQ_PAYLOAD = {
     "choices": [{"message": {"content": "OK"}}],

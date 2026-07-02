@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
-
 from finpipe.capabilities.policy import call_with_fallback, is_empty
 from finpipe.core.errors import (
     FinpipeConfigError,

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
-from conftest import FakeResponse, FakeTransport
 from finpipe.core.config import RateLimitConfig
 from finpipe.core.errors import (
     FinpipeAuthError,
@@ -13,6 +11,8 @@ from finpipe.core.errors import (
     FinpipeRateLimitExceededError,
 )
 from finpipe.runtime.resilience import RequestExecutor, classify, is_retryable, sanitize_url
+
+from conftest import FakeResponse, FakeTransport
 
 
 @pytest.mark.parametrize(
