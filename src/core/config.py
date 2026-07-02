@@ -520,6 +520,7 @@ class SchwabTTLConfig(BaseModel):
 
 
 class SchwabConfig(AbstractProviderConfig):
+    enabled: bool = False
     rate_limits: RateLimitConfig = Field(
         default_factory=lambda: RateLimitConfig(max_requests_per_minute=120)
     )
