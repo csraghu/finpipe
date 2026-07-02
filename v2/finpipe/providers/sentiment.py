@@ -120,8 +120,9 @@ class NewsSentimentAdapter(ProviderAdapter):
         if executor is None:
             return None
         headers = dict(_STOCKTWITS_HEADERS)
-        if self._source("stocktwits").http.user_agent:
-            headers["User-Agent"] = self._source("stocktwits").http.user_agent
+        user_agent = self._source("stocktwits").http.user_agent
+        if user_agent:
+            headers["User-Agent"] = user_agent
         try:
             response = await executor.request(
                 "GET", _STOCKTWITS_URL.format(symbol=symbol), headers=headers
@@ -186,6 +187,8 @@ class NewsSentimentAdapter(ProviderAdapter):
             return None
 
         async def fetch() -> tuple[str, float]:
+            assert reddit.client_id is not None
+            assert reddit.client_secret is not None
             response = await executor.request(
                 "POST",
                 "https://www.reddit.com/api/v1/access_token",

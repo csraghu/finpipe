@@ -151,8 +151,10 @@ class RequestExecutor:
         if self._transport is None:
             raise RuntimeError(f"Executor {self.namespace} has no HTTP transport")
 
+        transport = self._transport
+
         async def _attempt() -> Any:
-            response = await self._transport.request(method, url, **kwargs)
+            response = await transport.request(method, url, **kwargs)
             error = classify(response.status_code, url)
             if error is not None:
                 if isinstance(error, FinpipeRateLimitExceededError):

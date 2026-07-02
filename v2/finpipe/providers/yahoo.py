@@ -189,7 +189,7 @@ def _yf_history_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     elif "datetime" in frame.columns:
         frame = frame.rename(columns={"datetime": "timestamp"})
     keep = [col for col in OHLCV_COLUMNS if col in frame.columns]
-    return frame[keep].to_dict(orient="records")
+    return frame[keep].to_dict(orient="records")  # type: ignore[call-overload]
 
 
 def _statement_records(df: pd.DataFrame) -> dict[str, Any]:

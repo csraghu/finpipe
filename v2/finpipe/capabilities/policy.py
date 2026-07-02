@@ -71,6 +71,7 @@ async def call_with_fallback(
         return result
 
     if got_result:
+        assert last_result is not None
         return last_result  # all empty — return the (empty) canonical result, not an error
     if last_error is not None:
         raise last_error

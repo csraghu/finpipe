@@ -108,7 +108,7 @@ class AlphaVantageAdapter(ProviderAdapter):
         start_ts, end_ts = pd.Timestamp(start_date), pd.Timestamp(end_date)
         in_range = [
             r for r in records
-            if start_ts <= pd.Timestamp(r["timestamp"]).normalize() <= end_ts
+            if start_ts <= pd.Timestamp(r["timestamp"]).floor('D') <= end_ts
         ]
         return ohlcv_frame(in_range, self._rt.dataframe_format)
 
